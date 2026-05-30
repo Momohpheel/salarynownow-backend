@@ -14,11 +14,13 @@ class SalaryAdvanceController extends Controller
         $salary = $user->salary;
         $maxAdvance = $salary * 0.5;
 
-        return response()->json([
+        $data = [
             'monthly_salary' => '₦' . number_format($salary, 2),
             'max_advance' => '₦' . number_format($maxAdvance, 2),
             'max_advance_raw' => $maxAdvance,
-        ]);
+        ];
+
+        return $this->sendResponse($data, 'Salary advance eligibility retrieved');
     }
 
     public function store(Request $request)
@@ -37,9 +39,6 @@ class SalaryAdvanceController extends Controller
             'status' => 'pending',
         ]);
 
-        return response()->json([
-            'message' => 'Salary advance request submitted successfully',
-            'advance' => $advance,
-        ], 201);
+        return $this->sendResponse($advance, 'Salary advance request submitted successfully', true, 201);
     }
 }

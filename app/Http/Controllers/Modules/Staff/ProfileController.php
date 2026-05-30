@@ -20,7 +20,7 @@ class ProfileController extends Controller
         $user = $request->user();
         $employer = $user->parent;
 
-        return response()->json([
+        $data = [
             'personal_info' => [
                 'name' => $user->name,
                 'phone' => $user->phone_number,
@@ -35,7 +35,9 @@ class ProfileController extends Controller
             'preferences' => [
                 'marketplace_recommendations' => true,
             ]
-        ]);
+        ];
+
+        return $this->sendResponse($data, 'Staff profile retrieved successfully');
     }
 
     public function verifyBank(Request $request)
@@ -50,7 +52,7 @@ class ProfileController extends Controller
             $request->bank_code
         );
 
-        return response()->json($result);
+        return $this->sendResponse($result->data, 'Bank account verified');
     }
 
     public function updateBank(Request $request)
@@ -68,13 +70,12 @@ class ProfileController extends Controller
             'account_name' => $request->account_name,
         ]);
 
-        return response()->json([
-            'message' => 'Bank details updated successfully',
-            'bank_details' => [
-                'bank' => $user->bank_name,
-                'account_no' => $user->account_number,
-                'account_name' => $user->account_name,
-            ]
-        ]);
+        $data = [
+            'bank' => $user->bank_name,
+            'account_no' => $user->account_number,
+            'account_name' => $user->account_name,
+        ];
+
+        return $this->sendResponse($data, 'Bank details updated successfully');
     }
 }

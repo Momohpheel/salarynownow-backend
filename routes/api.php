@@ -89,8 +89,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/salary-advances', [EmployeeSalaryAdvanceController::class, 'index']);
         Route::get('/salary-advances/{salary_advance}', [EmployeeSalaryAdvanceController::class, 'show']);
 
-        // Payroll History
+        // Payroll History & Creation
         Route::get('/payrolls', [EmployeePayrollController::class, 'index']);
+        Route::get('/payrolls/configure', [EmployeePayrollController::class, 'configure']);
+        Route::get('/payrolls/review', [EmployeePayrollController::class, 'review']);
+        Route::post('/payrolls/check-balance', [EmployeePayrollController::class, 'checkBalance']);
+        Route::post('/payrolls', [EmployeePayrollController::class, 'store']);
         Route::get('/payrolls/{payroll}', [EmployeePayrollController::class, 'show']);
 
         // Team Management

@@ -51,7 +51,7 @@ class DashboardController extends Controller
                 ];
             });
 
-        return response()->json([
+        $data = [
             'greeting' => $this->getGreeting() . ", {$user->name}.",
             'summary' => [
                 'total_staff' => [
@@ -72,7 +72,9 @@ class DashboardController extends Controller
                 ],
             ],
             'recent_payroll_runs' => $recentPayrolls,
-        ]);
+        ];
+
+        return $this->sendResponse($data, 'Dashboard data retrieved successfully');
     }
 
     private function getGreeting()

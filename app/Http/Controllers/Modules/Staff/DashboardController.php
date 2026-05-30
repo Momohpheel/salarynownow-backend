@@ -12,7 +12,7 @@ class DashboardController extends Controller
         $user = $request->user();
         $employer = $user->parent; // The employee/company that added this staff
 
-        return response()->json([
+        $data = [
             'greeting' => "Hello, {$user->first_name} 👋",
             'company_name' => $employer?->company_name ?? 'Test Ind',
             'net_salary' => [
@@ -36,6 +36,8 @@ class DashboardController extends Controller
                     'color' => 'blue'
                 ]
             ]
-        ]);
+        ];
+
+        return $this->sendResponse($data, 'Staff dashboard data retrieved successfully');
     }
 }

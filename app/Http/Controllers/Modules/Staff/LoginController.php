@@ -27,19 +27,16 @@ class LoginController extends Controller
 
         $token = $user->createToken('staff-token')->plainTextToken;
 
-        return response()->json([
-            'message' => 'Staff logged in successfully',
+        return $this->sendResponse([
             'user' => $user,
             'token' => $token,
-        ]);
+        ], 'Staff logged in successfully');
     }
 
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json([
-            'message' => 'Logged out successfully',
-        ]);
+        return $this->sendResponse(null, 'Logged out successfully');
     }
 }

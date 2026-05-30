@@ -15,9 +15,9 @@ class ForgotPasswordController extends Controller
         $request->validate(['email' => 'required|email']);
         $user = User::staff()->where('email', $request->email)->first();
         if (!$user) {
-            return response()->json(['message' => 'If this email exists in our system, you will receive a reset link.'], 200);
+            return $this->sendResponse(null, 'If this email exists in our system, you will receive a reset link.');
         }
-        return response()->json(['message' => 'Reset link sent successfully to your email.']);
+        return $this->sendResponse(null, 'Reset link sent successfully to your email.');
     }
 
     public function reset(Request $request)
@@ -28,8 +28,8 @@ class ForgotPasswordController extends Controller
             'token' => 'required',
         ]);
         $user = User::staff()->where('email', $request->email)->first();
-        if (!$user) return response()->json(['message' => 'User not found.'], 404);
+        if (!$user) return $this->sendError('User not found.', null, 404);
         $user->forceFill(['password' => Hash::make($request->password)])->save();
-        return response()->json(['message' => 'Password has been reset successfully.']);
+        return $this->sendResponse(null, 'Password has been reset successfully.');
     }
 }

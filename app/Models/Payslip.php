@@ -14,7 +14,6 @@ class Payslip extends Model
         'pension',
         'other_deductions',
         'net_salary',
-        'pdf_path',
     ];
 
     protected $casts = [

@@ -17,17 +17,17 @@ class SalaryAdvanceController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json([
-            'salary_advances' => $advances->map(function($advance) {
-                return [
-                    'id' => $advance->id,
-                    'staff_name' => $advance->staff->name,
-                    'amount' => '₦' . number_format($advance->amount, 2),
-                    'status' => $advance->status,
-                    'date' => $advance->created_at->format('d M Y'),
-                ];
-            }),
-        ]);
+        $data = $advances->map(function($advance) {
+            return [
+                'id' => $advance->id,
+                'staff_name' => $advance->staff->name,
+                'amount' => '₦' . number_format($advance->amount, 2),
+                'status' => $advance->status,
+                'date' => $advance->created_at->format('d M Y'),
+            ];
+        });
+
+        return $this->sendResponse($data, 'Salary advances retrieved successfully');
     }
 
     public function show(Request $request, SalaryAdvance $salaryAdvance)
@@ -35,11 +35,9 @@ class SalaryAdvanceController extends Controller
         $employerId = $request->user()->getEmployerId();
 
         if ($salaryAdvance->user_id !== $employerId) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+            return $this->sendError('Unauthorized.', null, 403);
         }
 
-        return response()->json([
-            'salary_advance' => $salaryAdvance->load('staff'),
-        ]);
+        return $this->sendResponse($salaryAdvance->load('staff'), 'Salary advance details retrieved successfully');
     }
 }

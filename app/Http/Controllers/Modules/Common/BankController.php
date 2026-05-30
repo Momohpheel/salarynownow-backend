@@ -23,16 +23,9 @@ class BankController extends Controller
         try {
             $banks = $this->sarepayService->getBanks();
             
-            return response()->json([
-                'status' => 'success',
-                'data' => $banks,
-            ]);
+            return $this->sendResponse($banks, 'Banks retrieved successfully');
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to fetch banks.',
-                'error' => $e->getMessage(),
-            ], 500);
+            return $this->sendError('Failed to fetch banks.', $e->getMessage(), 500);
         }
     }
 }

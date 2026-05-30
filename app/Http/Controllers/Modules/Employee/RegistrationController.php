@@ -57,9 +57,6 @@ class RegistrationController extends Controller
             'utility_bill_path' => $utilityBillPath,
         ]);
 
-        return response()->json([
-            'message' => 'Employee registered successfully',
-            'user' => $user,
-        ], 201);
+        return $this->sendResponse($user, 'Employee registered successfully', true, 201);
     }
 }

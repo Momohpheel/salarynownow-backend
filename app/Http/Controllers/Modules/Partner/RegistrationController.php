@@ -25,9 +25,6 @@ class RegistrationController extends Controller
             'type' => User::TYPE_PARTNER,
         ]);
 
-        return response()->json([
-            'message' => 'Partner registered successfully',
-            'user' => $user,
-        ], 201);
+        return $this->sendResponse($user, 'Partner registered successfully', true, 201);
     }
 }

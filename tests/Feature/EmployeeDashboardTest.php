@@ -16,7 +16,7 @@ class EmployeeDashboardTest extends TestCase
 
     public function test_employee_can_access_dashboard_with_correct_data()
     {
-        $employee = User::factory()->employee()->create(['name' => 'Demo']);
+        $employee = User::factory()->employee()->approved()->create(['name' => 'Demo']);
         $employee->wallet()->create([
             'balance' => 600000,
             'currency' => 'NGN',
@@ -49,14 +49,13 @@ class EmployeeDashboardTest extends TestCase
             ->getJson('/api/employee/dashboard');
 
         $response->assertStatus(200)
-            ->assertJsonPath('summary.total_staff.value', 3) // 2 + 1 from advance staff
-            ->assertJsonPath('summary.pending_advances.value', 1)
-            ->assertJsonFragment(['description' => 'May 2026 Salary']);
+            ->assertJsonPath('data.summary.total_staff.value', 3) // 2 + 1 from advance staff
+            ->assertJsonPath('data.summary.pending_advances.value', 1);
     }
 
     public function test_employee_can_add_detailed_staff()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
 
         $response = $this->actingAs($employee)
             ->postJson('/api/employee/staff', [
@@ -78,13 +77,13 @@ class EmployeeDashboardTest extends TestCase
             ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('staff.first_name', 'Momoh')
-            ->assertJsonPath('staff.salary', 350000);
+            ->assertJsonPath('data.first_name', 'Momoh')
+            ->assertJsonPath('data.salary', 350000);
     }
 
     public function test_employee_can_list_staff_with_search()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         User::factory()->staff()->create([
             'parent_id' => $employee->id,
             'name' => 'Momoh Philip',
@@ -100,13 +99,13 @@ class EmployeeDashboardTest extends TestCase
             ->getJson('/api/employee/staff?search=Momoh');
 
         $response->assertStatus(200)
-            ->assertJsonCount(1, 'staff')
-            ->assertJsonPath('staff.0.name', 'Momoh Philip');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Momoh Philip');
     }
 
     public function test_employee_can_get_wallet_details()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         $wallet = $employee->wallet()->create([
             'balance' => 600000,
             'currency' => 'NGN',
@@ -127,13 +126,13 @@ class EmployeeDashboardTest extends TestCase
             ->getJson('/api/employee/wallet');
 
         $response->assertStatus(200)
-            ->assertJsonPath('available_balance', '₦600,000.00')
-            ->assertJsonCount(1, 'transactions');
+            ->assertJsonPath('data.available_balance', '₦600,000.00')
+            ->assertJsonCount(1, 'data.transactions');
     }
 
     public function test_employee_can_update_staff()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         $staff = User::factory()->staff()->create(['parent_id' => $employee->id]);
 
         $response = $this->actingAs($employee)
@@ -144,37 +143,37 @@ class EmployeeDashboardTest extends TestCase
             ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('staff.first_name', 'Updated')
-            ->assertJsonPath('staff.salary', 500000);
+            ->assertJsonPath('data.first_name', 'Updated')
+            ->assertJsonPath('data.salary', 500000);
     }
 
     public function test_employee_can_toggle_staff_status()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         $staff = User::factory()->staff()->create(['parent_id' => $employee->id, 'is_active' => true]);
 
         $response = $this->actingAs($employee)
             ->postJson("/api/employee/staff/{$staff->id}/toggle-status");
 
         $response->assertStatus(200)
-            ->assertJsonPath('is_active', false);
+            ->assertJsonPath('data.is_active', false);
     }
 
     public function test_employee_can_invite_staff()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         $staff = User::factory()->staff()->create(['parent_id' => $employee->id, 'invitation_status' => 'Not invited']);
 
         $response = $this->actingAs($employee)
             ->postJson("/api/employee/staff/{$staff->id}/invite");
 
         $response->assertStatus(200)
-            ->assertJsonPath('invitation_status', 'Activated');
+            ->assertJsonPath('data.invitation_status', 'Activated');
     }
 
     public function test_employee_can_bulk_upload_staff()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         
         $csvContent = "first_name,last_name,email,phone,salary,job_title,department\n";
         $csvContent .= "Bulk1,User1,bulk1@example.com,+2341,400000,Dev,Engineering\n";
@@ -196,7 +195,7 @@ class EmployeeDashboardTest extends TestCase
 
     public function test_employee_can_list_salary_advances()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         $staff = User::factory()->staff()->create(['parent_id' => $employee->id]);
         
         SalaryAdvance::create([
@@ -210,12 +209,12 @@ class EmployeeDashboardTest extends TestCase
             ->getJson('/api/employee/salary-advances');
 
         $response->assertStatus(200)
-            ->assertJsonCount(1, 'salary_advances');
+            ->assertJsonCount(1, 'data');
     }
 
     public function test_employee_can_view_payroll_history()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         Payroll::create([
             'user_id' => $employee->id,
             'description' => 'May 2026 Salary',
@@ -231,13 +230,13 @@ class EmployeeDashboardTest extends TestCase
             ->getJson('/api/employee/payrolls');
 
         $response->assertStatus(200)
-            ->assertJsonCount(1, 'payroll_history')
-            ->assertJsonPath('payroll_history.0.total_amount', '₦323,834.00');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.total_amount', '₦323,834.00');
     }
 
     public function test_employee_can_view_detailed_payroll_run()
     {
-        $employee = User::factory()->employee()->create();
+        $employee = User::factory()->employee()->approved()->create();
         $staff = User::factory()->staff()->create(['parent_id' => $employee->id, 'name' => 'Demo Staff']);
         
         $payroll = \App\Models\Payroll::create([
@@ -265,13 +264,52 @@ class EmployeeDashboardTest extends TestCase
             ->getJson("/api/employee/payrolls/{$payroll->id}");
 
         $response->assertStatus(200)
-            ->assertJsonPath('payroll_run.summary.staff_count', 1)
-            ->assertJsonPath('payroll_run.staff_payments.0.name', 'Demo Staff');
+            ->assertJsonPath('data.payroll_run.summary.staff_count', 1)
+            ->assertJsonPath('data.payroll_run.staff_payments.0.name', 'Demo Staff');
+    }
+
+    public function test_employee_can_complete_payroll_flow()
+    {
+        $owner = User::factory()->employee()->approved()->create();
+        $owner->wallet()->create(['balance' => 1000000, 'currency' => 'NGN']);
+        
+        $staff1 = User::factory()->staff()->create(['parent_id' => $owner->id, 'salary' => 350000, 'is_active' => true]);
+        $staff2 = User::factory()->staff()->create(['parent_id' => $owner->id, 'salary' => 1994, 'is_active' => true]);
+
+        // 1. Configure
+        $response = $this->actingAs($owner)->getJson('/api/employee/payrolls/configure');
+        $response->assertStatus(200)->assertJsonPath('data.staff_count', 2);
+
+        // 2. Review
+        $response = $this->actingAs($owner)->getJson('/api/employee/payrolls/review');
+        $response->assertStatus(200)->assertJsonCount(2, 'data.staff_payments');
+        $totalNet = $response->json('data.summary.raw_total_net');
+
+        // 3. Check Balance
+        $response = $this->actingAs($owner)->postJson('/api/employee/payrolls/check-balance', [
+            'total_amount' => $totalNet
+        ]);
+        $response->assertStatus(200)->assertJsonPath('data.is_sufficient', true);
+
+        // 4. Store
+        $response = $this->actingAs($owner)->postJson('/api/employee/payrolls', [
+            'period_start' => '2026-05-01',
+            'period_end' => '2026-05-31',
+            'pay_date' => '2026-05-29',
+            'staff_data' => [
+                ['id' => $staff1->id, 'deductions' => 0],
+                ['id' => $staff2->id, 'deductions' => 0],
+            ]
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('payrolls', ['user_id' => $owner->id, 'staff_count' => 2]);
+        $this->assertEquals(1000000 - $totalNet, $owner->wallet->fresh()->balance);
     }
 
     public function test_employee_can_manage_team()
     {
-        $employee = User::factory()->employee()->create(['role' => 'Owner']);
+        $employee = User::factory()->employee()->approved()->create(['role' => 'Owner']);
         
         // Add team member
         $response = $this->actingAs($employee)
@@ -282,13 +320,13 @@ class EmployeeDashboardTest extends TestCase
             ]);
 
         $response->assertStatus(201);
-        $memberId = $response->json('member.id');
+        $memberId = $response->json('data.id');
 
         // List team
         $response = $this->actingAs($employee)
             ->getJson('/api/employee/team');
         $response->assertStatus(200)
-            ->assertJsonCount(2, 'team_members'); // Owner + Finance
+            ->assertJsonCount(2, 'data'); // Owner + Finance
 
         // Update role
         $response = $this->actingAs($employee)
@@ -325,7 +363,7 @@ class EmployeeDashboardTest extends TestCase
             ->getJson('/api/employee/wallet');
 
         $response->assertStatus(200)
-            ->assertJsonPath('available_balance', '₦5,000.00');
+            ->assertJsonPath('data.available_balance', '₦5,000.00');
     }
 
     public function test_employee_logout()

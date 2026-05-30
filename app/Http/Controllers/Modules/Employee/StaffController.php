@@ -64,10 +64,7 @@ class StaffController extends Controller
             'is_approved' => true, // Staff added by employees are auto-approved for their own system
         ]);
 
-        return response()->json([
-            'message' => 'Staff member added successfully',
-            'staff' => $staff,
-        ], 201);
+        return $this->sendResponse($staff, 'Staff member added successfully', true, 201);
     }
 
     public function index(Request $request)
@@ -92,20 +89,20 @@ class StaffController extends Controller
 
         $staff = $query->orderBy('created_at', 'desc')->get();
 
-        return response()->json([
-            'staff' => $staff->map(function($s) {
-                return [
-                    'id' => $s->id,
-                    'name' => $s->name,
-                    'email' => $s->email,
-                    'phone' => $s->phone_number ?? '-',
-                    'bank' => $s->bank_name ?? '-',
-                    'salary' => '₦' . number_format($s->salary, 2),
-                    'status' => $s->invitation_status,
-                    'is_active' => $s->is_active,
-                ];
-            }),
-        ]);
+        $data = $staff->map(function($s) {
+            return [
+                'id' => $s->id,
+                'name' => $s->name,
+                'email' => $s->email,
+                'phone' => $s->phone_number ?? '-',
+                'bank' => $s->bank_name ?? '-',
+                'salary' => '₦' . number_format($s->salary, 2),
+                'status' => $s->invitation_status,
+                'is_active' => $s->is_active,
+            ];
+        });
+
+        return $this->sendResponse($data, 'Staff list retrieved successfully');
     }
 
     public function update(Request $request, User $staff)
@@ -113,7 +110,7 @@ class StaffController extends Controller
         $employerId = $request->user()->getEmployerId();
 
         if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
-            return response()->json(['message' => 'Unauthorized or staff not found.'], 403);
+            return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
         $request->validate([
@@ -137,10 +134,7 @@ class StaffController extends Controller
 
         $staff->update($data);
 
-        return response()->json([
-            'message' => 'Staff updated successfully',
-            'staff' => $staff,
-        ]);
+        return $this->sendResponse($staff, 'Staff updated successfully');
     }
 
     public function toggleStatus(Request $request, User $staff)
@@ -148,15 +142,12 @@ class StaffController extends Controller
         $employerId = $request->user()->getEmployerId();
 
         if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
-            return response()->json(['message' => 'Unauthorized or staff not found.'], 403);
+            return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
         $staff->update(['is_active' => !$staff->is_active]);
 
-        return response()->json([
-            'message' => 'Staff status updated successfully',
-            'is_active' => $staff->is_active,
-        ]);
+        return $this->sendResponse(['is_active' => $staff->is_active], 'Staff status updated successfully');
     }
 
     public function invite(Request $request, User $staff)
@@ -164,16 +155,13 @@ class StaffController extends Controller
         $employerId = $request->user()->getEmployerId();
 
         if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
-            return response()->json(['message' => 'Unauthorized or staff not found.'], 403);
+            return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
         // Simulate sending mail
         $staff->update(['invitation_status' => 'Activated']); // For demo purposes, we'll mark as activated
 
-        return response()->json([
-            'message' => "Invitation sent to {$staff->email}",
-            'invitation_status' => $staff->invitation_status,
-        ]);
+        return $this->sendResponse(['invitation_status' => $staff->invitation_status], "Invitation sent to {$staff->email}");
     }
 
     public function bulkUpload(Request $request)
@@ -215,8 +203,6 @@ class StaffController extends Controller
         
         fclose($handle);
 
-        return response()->json([
-            'message' => "Successfully uploaded {$count} staff members",
-        ]);
+        return $this->sendResponse(null, "Successfully uploaded {$count} staff members");
     }
 }

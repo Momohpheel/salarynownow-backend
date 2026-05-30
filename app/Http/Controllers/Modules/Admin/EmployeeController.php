@@ -22,43 +22,36 @@ class EmployeeController extends Controller
     {
         $employees = User::employee()->orderBy('created_at', 'desc')->get();
 
-        return response()->json([
-            'employees' => $employees,
-        ]);
+        return $this->sendResponse($employees, 'Employees retrieved successfully');
     }
 
     public function show(User $employee)
     {
         if ($employee->type !== User::TYPE_EMPLOYEE) {
-            return response()->json(['message' => 'User is not an employee.'], 404);
+            return $this->sendError('User is not an employee.', null, 404);
         }
 
-        return response()->json([
-            'employee' => $employee->load('wallet'),
-        ]);
+        return $this->sendResponse($employee->load('wallet'), 'Employee details retrieved successfully');
     }
 
     public function approve(User $employee)
     {
         if ($employee->type !== User::TYPE_EMPLOYEE) {
-            return response()->json(['message' => 'User is not an employee.'], 404);
+            return $this->sendError('User is not an employee.', null, 404);
         }
 
         if ($employee->is_approved) {
-            return response()->json(['message' => 'Employee is already approved.'], 400);
+            return $this->sendError('Employee is already approved.', null, 400);
         }
 
         // Call Sarepay to create virtual account
         $sarepayResponse = $this->sarepayService->createAccount($employee);
 
-        // if ($sarepayResponse['status'] !== 'success') {
-        //     return response()->json([
-        //         'message' => 'Failed to create virtual account with Sarepay.',
-        //         'error' => $sarepayResponse['message'] ?? 'Unknown error'
-        //     ], 500);
-        // }
+        if ($sarepayResponse['status'] !== 'success') {
+            return $this->sendError('Failed to create virtual account with Sarepay.', $sarepayResponse['message'] ?? 'Unknown error', 500);
+        }
 
-        $accountData = $sarepayResponse;
+        $accountData = $sarepayResponse['data'];
 
         DB::transaction(function () use ($employee, $accountData) {
             $employee->update(['is_approved' => true]);
@@ -76,9 +69,6 @@ class EmployeeController extends Controller
             ]);
         });
 
-        return response()->json([
-            'message' => 'Employee approved and virtual account created successfully.',
-            'employee' => $employee->fresh('wallet'),
-        ]);
+        return $this->sendResponse($employee->fresh('wallet'), 'Employee approved and virtual account created successfully.');
     }
 }

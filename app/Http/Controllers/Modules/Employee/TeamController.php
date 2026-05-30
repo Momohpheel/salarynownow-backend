@@ -21,17 +21,17 @@ class TeamController extends Controller
         // Include the actual owner (employer) in the list
         $owner = User::find($employerId);
 
-        return response()->json([
-            'team_members' => collect([$owner])->concat($team)->map(function($m) {
-                return [
-                    'id' => $m->id,
-                    'name' => $m->name,
-                    'email' => $m->email,
-                    'role' => $m->role,
-                    'is_active' => $m->is_active,
-                ];
-            }),
-        ]);
+        $data = collect([$owner])->concat($team)->map(function($m) {
+            return [
+                'id' => $m->id,
+                'name' => $m->name,
+                'email' => $m->email,
+                'role' => $m->role,
+                'is_active' => $m->is_active,
+            ];
+        });
+
+        return $this->sendResponse($data, 'Team members retrieved successfully');
     }
 
     public function store(Request $request)
@@ -55,10 +55,7 @@ class TeamController extends Controller
             'is_active' => true,
         ]);
 
-        return response()->json([
-            'message' => 'Team member added successfully',
-            'member' => $member,
-        ], 201);
+        return $this->sendResponse($member, 'Team member added successfully', true, 201);
     }
 
     public function updateRole(Request $request, User $member)
@@ -66,7 +63,7 @@ class TeamController extends Controller
         $employerId = $request->user()->getEmployerId();
 
         if ($member->parent_id !== $employerId) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+            return $this->sendError('Unauthorized.', null, 403);
         }
 
         $request->validate([
@@ -75,10 +72,7 @@ class TeamController extends Controller
 
         $member->update(['role' => $request->role]);
 
-        return response()->json([
-            'message' => 'Role updated successfully',
-            'member' => $member,
-        ]);
+        return $this->sendResponse($member, 'Role updated successfully');
     }
 
     public function toggleStatus(Request $request, User $member)
@@ -86,14 +80,11 @@ class TeamController extends Controller
         $employerId = $request->user()->getEmployerId();
 
         if ($member->parent_id !== $employerId) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+            return $this->sendError('Unauthorized.', null, 403);
         }
 
         $member->update(['is_active' => !$member->is_active]);
 
-        return response()->json([
-            'message' => 'Team member status updated successfully',
-            'is_active' => $member->is_active,
-        ]);
+        return $this->sendResponse(['is_active' => $member->is_active], 'Team member status updated successfully');
     }
 }

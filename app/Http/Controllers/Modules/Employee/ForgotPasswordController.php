@@ -22,14 +22,12 @@ class ForgotPasswordController extends Controller
         $user = User::employee()->where('email', $request->email)->first();
 
         if (!$user) {
-            return response()->json(['message' => 'If this email exists in our system, you will receive a reset link.'], 200);
+            return $this->sendResponse(null, 'If this email exists in our system, you will receive a reset link.');
         }
 
         // In a real app, you'd use Password::sendResetLink()
         // For now, we simulate the success.
-        return response()->json([
-            'message' => 'Reset link sent successfully to your email.',
-        ]);
+        return $this->sendResponse(null, 'Reset link sent successfully to your email.');
     }
 
     /**
@@ -46,15 +44,13 @@ class ForgotPasswordController extends Controller
         $user = User::employee()->where('email', $request->email)->first();
 
         if (!$user) {
-            return response()->json(['message' => 'User not found.'], 404);
+            return $this->sendError('User not found.', null, 404);
         }
 
         $user->forceFill([
             'password' => Hash::make($request->password),
         ])->save();
 
-        return response()->json([
-            'message' => 'Password has been reset successfully.',
-        ]);
+        return $this->sendResponse(null, 'Password has been reset successfully.');
     }
 }

@@ -10,9 +10,9 @@ class WalletController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $employer = $user->employer()->first();
-        $wallet = $employer->wallet;
-
+      
+        $user = $request->user();
+        $wallet = $user->wallet;
         if (!$wallet) {
             return response()->json([
                 'message' => 'Wallet not found for this user.',
@@ -24,7 +24,7 @@ class WalletController extends Controller
             ->limit(50)
             ->get();
 
-        return response()->json([
+        $data = [
             'available_balance' => '₦' . number_format($wallet->balance, 2),
             'transaction_count' => $logs->count(),
             'account_details' => [
@@ -41,6 +41,8 @@ class WalletController extends Controller
                     'reference' => $log->metadata['reference'] ?? '-',
                 ];
             }),
-        ]);
+        ];
+
+        return $this->sendResponse($data, 'Wallet details retrieved successfully');
     }
 }
