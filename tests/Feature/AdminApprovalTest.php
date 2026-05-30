@@ -41,7 +41,7 @@ class AdminApprovalTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonStructure(['token', 'user']);
+            ->assertJsonStructure(['status', 'message', 'data' => ['token', 'user']]);
     }
 
     public function test_admin_can_approve_employee_and_create_wallet()
@@ -57,7 +57,7 @@ class AdminApprovalTest extends TestCase
             ->postJson("/api/admin/employees/{$employee->id}/approve");
 
         $response->assertStatus(200)
-            ->assertJsonPath('employee.is_approved', true);
+            ->assertJsonPath('data.is_approved', true);
 
         $this->assertDatabaseHas('users', [
             'id' => $employee->id,
@@ -84,7 +84,7 @@ class AdminApprovalTest extends TestCase
             ->getJson('/api/admin/employees');
 
         $response->assertStatus(200)
-            ->assertJsonCount(3, 'employees');
+            ->assertJsonCount(3, 'data');
     }
 
     public function test_admin_can_view_employee_details()
@@ -96,6 +96,6 @@ class AdminApprovalTest extends TestCase
             ->getJson("/api/admin/employees/{$employee->id}");
 
         $response->assertStatus(200)
-            ->assertJsonPath('employee.id', $employee->id);
+            ->assertJsonPath('data.id', $employee->id);
     }
 }

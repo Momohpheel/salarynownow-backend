@@ -38,8 +38,8 @@ class ModuleRegistrationTest extends TestCase
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('user.type', User::TYPE_EMPLOYEE)
-            ->assertJsonPath('user.company_name', 'Acme Corp');
+            ->assertJsonPath('data.type', User::TYPE_EMPLOYEE)
+            ->assertJsonPath('data.company_name', 'Acme Corp');
 
         $this->assertDatabaseHas('users', [
             'email' => 'john@example.com',
@@ -52,7 +52,7 @@ class ModuleRegistrationTest extends TestCase
 
     public function test_employee_can_login()
     {
-        $employee = User::factory()->employee()->create([
+        $employee = User::factory()->employee()->approved()->create([
             'email' => 'employee@example.com',
             'password' => 'password',
         ]);
@@ -63,7 +63,7 @@ class ModuleRegistrationTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonStructure(['token', 'user']);
+            ->assertJsonStructure(['status', 'message', 'data' => ['token', 'user']]);
     }
 
     public function test_partner_can_login()
@@ -79,7 +79,7 @@ class ModuleRegistrationTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonStructure(['token', 'user']);
+            ->assertJsonStructure(['status', 'message', 'data' => ['token', 'user']]);
     }
 
     public function test_staff_can_login()
@@ -95,7 +95,7 @@ class ModuleRegistrationTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonStructure(['token', 'user']);
+            ->assertJsonStructure(['status', 'message', 'data' => ['token', 'user']]);
     }
 
     public function test_wrong_user_type_cannot_login_to_different_module()

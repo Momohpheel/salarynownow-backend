@@ -6,6 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Payroll extends Model
 {
+    const STATUS_PENDING = 'pending';
+    const STATUS_PROCESSING = 'processing';
+    const STATUS_COMPLETED = 'completed';
+    const STATUS_FAILED = 'failed';
+
     protected $fillable = [
         'user_id',
         'description',

@@ -62,17 +62,18 @@ class StaffModuleTest extends TestCase
         Payslip::create([
             'user_id' => $staff->id,
             'period' => 'May 2026',
-            'gross_salary' => 800000000,
-            'pension' => 64000000,
-            'net_salary' => 736000000,
+            'gross_salary' => 800000,
+            'pension' => 64000,
+            'net_salary' => 736000,
+            'status' => Payslip::STATUS_DISBURSED,
         ]);
 
         $response = $this->actingAs($staff)
             ->getJson('/api/staff/payslips');
 
         $response->assertStatus(200)
-            ->assertJsonCount(1, 'payslip_history')
-            ->assertJsonPath('payslip_history.0.net', '₦736,000,000.00');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.net', '₦736,000.00');
     }
 
     public function test_staff_can_request_salary_advance()

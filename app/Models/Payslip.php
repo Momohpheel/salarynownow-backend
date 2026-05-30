@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Payslip extends Model
 {
+    const STATUS_PROCESSING = 'processing';
+    const STATUS_DISBURSED = 'disbursed';
+    const STATUS_FAILED = 'failed';
+
     protected $fillable = [
         'user_id',
         'payroll_id',
@@ -14,6 +18,7 @@ class Payslip extends Model
         'pension',
         'other_deductions',
         'net_salary',
+        'status',
     ];
 
     protected $casts = [

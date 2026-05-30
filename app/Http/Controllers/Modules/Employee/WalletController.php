@@ -14,9 +14,7 @@ class WalletController extends Controller
         $user = $request->user();
         $wallet = $user->wallet;
         if (!$wallet) {
-            return response()->json([
-                'message' => 'Wallet not found for this user.',
-            ], 404);
+            return $this->sendError('Wallet not found for this user.', null, 404);
         }
 
         $logs = $wallet->logs()

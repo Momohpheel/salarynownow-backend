@@ -125,7 +125,7 @@ class PayrollController extends Controller
                 'description' => now()->format('F Y') . ' Salary',
                 'amount' => 0, // Will update after calculation
                 'staff_count' => 0,
-                'status' => 'completed',
+                'status' => \App\Models\Payroll::STATUS_COMPLETED,
                 'processed_at' => $request->pay_date,
                 'period_start' => $request->period_start,
                 'period_end' => $request->period_end,
@@ -147,6 +147,7 @@ class PayrollController extends Controller
                     'pension' => $pensionEE,
                     'other_deductions' => $deductions,
                     'net_salary' => $netPay,
+                    'status' => Payslip::STATUS_DISBURSED,
                 ]);
 
                 $totalNetToPay += $netPay;
@@ -236,7 +237,7 @@ class PayrollController extends Controller
                         'deductions' => $p->other_deductions > 0 ? '₦' . number_format($p->other_deductions, 2) : 'NO',
                         'advance_ded' => 'NO', // Placeholder for advance deduction logic
                         'net_pay' => '₦' . number_format($p->net_salary, 2),
-                        'status' => 'disbursed',
+                        'status' => $p->status,
                     ];
                 }),
             ],
