@@ -30,7 +30,46 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'type' => User::TYPE_EMPLOYEE,
+            'is_approved' => false,
         ];
+    }
+
+    public function employee(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => User::TYPE_EMPLOYEE,
+            'is_approved' => false,
+        ]);
+    }
+
+    public function approved(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_approved' => true,
+        ]);
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => User::TYPE_ADMIN,
+            'is_approved' => true,
+        ]);
+    }
+
+    public function staff(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => User::TYPE_STAFF,
+        ]);
+    }
+
+    public function partner(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => User::TYPE_PARTNER,
+        ]);
     }
 
     /**
