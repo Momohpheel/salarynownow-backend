@@ -17,15 +17,15 @@ class StaffModuleTest extends TestCase
         $staff = User::factory()->staff()->create([
             'parent_id' => $employer->id,
             'first_name' => 'Chiamaka',
-            'salary' => 800000000,
+            'salary' => 800000,
         ]);
 
         $response = $this->actingAs($staff)
             ->getJson('/api/staff/dashboard');
 
         $response->assertStatus(200)
-            ->assertJsonPath('greeting', 'Hello, Chiamaka 👋')
-            ->assertJsonPath('net_salary.amount', '₦800,000,000.00');
+            ->assertJsonPath('data.greeting', 'Hello, Chiamaka 👋')
+            ->assertJsonPath('data.net_salary.amount', '₦800,000.00');
     }
 
     public function test_staff_can_view_profile_and_update_bank()
@@ -39,7 +39,7 @@ class StaffModuleTest extends TestCase
             ->getJson('/api/staff/profile');
 
         $response->assertStatus(200)
-            ->assertJsonPath('bank_details.bank', 'Old Bank');
+            ->assertJsonPath('data.bank_details.bank', 'Old Bank');
 
         // Update bank
         $response = $this->actingAs($staff)
@@ -88,7 +88,7 @@ class StaffModuleTest extends TestCase
         $response = $this->actingAs($staff)
             ->getJson('/api/staff/salary-advance/eligibility');
         $response->assertStatus(200)
-            ->assertJsonPath('max_advance_raw', 400000);
+            ->assertJsonPath('data.max_advance_raw', 400000);
 
         // Submit request
         $response = $this->actingAs($staff)

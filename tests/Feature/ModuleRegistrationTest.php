@@ -124,7 +124,7 @@ class ModuleRegistrationTest extends TestCase
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('user.type', User::TYPE_PARTNER);
+            ->assertJsonPath('data.type', User::TYPE_PARTNER);
 
         $this->assertDatabaseHas('users', [
             'email' => 'jane@example.com',
@@ -138,14 +138,26 @@ class ModuleRegistrationTest extends TestCase
 
         $response = $this->actingAs($employee)
             ->postJson('/api/employee/staff', [
-                'name' => 'Staff Member',
+                'first_name' => 'Staff',
+                'last_name' => 'Member',
                 'email' => 'staff@example.com',
-                'password' => 'password',
+                'phone_number' => '08012345678',
+                'job_title' => 'Developer',
+                'department' => 'IT',
+                'start_date' => '2026-01-01',
+                'bank_name' => 'GTBank',
+                'account_number' => '0123456789',
+                'account_name' => 'Staff Member',
+                'salary' => 500000,
+                'pfa_name' => 'Stanbic IBTC',
+                'rsa_pin' => 'PEN123456789',
+                'pension_employee_rate' => 8,
+                'pension_employer_rate' => 10,
             ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('staff.type', User::TYPE_STAFF)
-            ->assertJsonPath('staff.parent_id', $employee->id);
+            ->assertJsonPath('data.type', User::TYPE_STAFF)
+            ->assertJsonPath('data.parent_id', $employee->id);
 
         $this->assertDatabaseHas('users', [
             'email' => 'staff@example.com',
@@ -166,6 +178,6 @@ class ModuleRegistrationTest extends TestCase
             ->getJson('/api/employee/staff');
 
         $response->assertStatus(200)
-            ->assertJsonCount(3, 'staff');
+            ->assertJsonCount(3, 'data');
     }
 }

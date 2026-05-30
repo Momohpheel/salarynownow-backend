@@ -10,9 +10,11 @@ class WalletController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-      
-        $user = $request->user();
-        $wallet = $user->wallet;
+        $employer = $user->type === \App\Models\User::TYPE_EMPLOYEE && $user->parent_id 
+            ? $user->parent 
+            : $user;
+
+        $wallet = $employer->wallet;
         if (!$wallet) {
             return $this->sendError('Wallet not found for this user.', null, 404);
         }

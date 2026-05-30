@@ -140,12 +140,15 @@ class SarepayService{
     }
 
     public function createAccount($data){
-        if (config('app.env') === 'staging') {
-            return (object) [
-                "account_number" => "1234567890",
-                "account_name" => ($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''),
-                "account_reference" => "mock_" . \Illuminate\Support\Str::random(),
-                "bank_name" => "Mock Bank",
+        if (config('app.env') === 'staging' || config('app.env') === 'testing') {
+            return [
+                'status' => 'success',
+                'data' => [
+                    "account_number" => "1234567890",
+                    "account_name" => ($data['first_name'] ?? 'Test') . ' ' . ($data['last_name'] ?? 'User'),
+                    "account_reference" => "mock_" . \Illuminate\Support\Str::random(),
+                    "bank_name" => "Mock Bank",
+                ]
             ];
         }
 
