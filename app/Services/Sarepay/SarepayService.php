@@ -289,47 +289,7 @@ class SarepayService{
         return $response;
     }
 
-    public function charge($data){
-
-        // $combined = "{$data['pan']} {$data['cvv']} {$data['expMonth']} {$data['expYear']}";
-
-        // $encryptedString = (new SarepayCrypto())->sarepayEncrypt($combined, $this->key, $this->iv);
-
-        $payload = [
-            "reference" => $data['reference'],
-            "amount" => $data['amount'],
-            "narration" => $data['narration'] ?? null,
-            "currency" => "NGN",
-           // "card_data" => $encryptedString,
-            "callback_url" => "api/sarepay/".$data['reference'], 
-            "metadata" => [
-                "reason" => $data['narration']
-            ],
-            "device_information" => [
-                "http_browser_language" => request()->server('HTTP_ACCEPT_LANGUAGE'),
-                "http_browser_java_enabled" => false,
-                "http_browser_javascript_enabled" => true,  
-                "http_browser_color_depth" => "24", 
-                "http_browser_screen_height" => request()->header('X-Screen-Height'),
-                "http_browser_screen_width" => request()->header('X-Screen-Width'),
-                "http_browser_time_difference" => "", 
-                "user_agent_browser_value" => request()->userAgent(),
-                "device_channel" => "Browser",
-                "ip_address" => request()->ip()
-            ],
-        ];        
-
-    
-        $endpoint = $this->constant('base_url') . '/charge';
-        $response = $this->apiPost($endpoint, $payload);
-
-       
-       // $response = $response->data;
-        //\Log::info($response);
-        
-
-        return $response->data;
-    }
+ 
 
     public function requery($reference)
     {
@@ -342,38 +302,5 @@ class SarepayService{
         return $response;
     }
 
-    public function sendOtp($data)
-    {
-       
-        $payload = [
-            "reference" => $data['reference'],
-            "otp" => $data['otp'],
-        ];        
-
-        $endpoint = $this->constant('base_url') . '/submit-otp';
-        $response = $this->apiPost($endpoint, $payload);
-       // \Log::info($response);
-        $response = $response->data;
-
-        return $response;
-    }
-
-    public function sendPin($data)
-    {
-        
-
-        // $encryptedString = (new SarepayCrypto())->sarepayEncrypt($data['pin'], $this->key, $this->iv);
-
-        $payload = [
-            "reference" => $data['reference'],
-            //"pin" =>  $encryptedString,
-        ];        
-
-        $endpoint = $this->constant('base_url') . '/submit-pin';
-        $response = $this->apiPost($endpoint, $payload);
-        //\Log::info($response);
-        $response = $response->data;
-
-        return $response;
-    }
+  
 }

@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Modules\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\SarepayService;
+use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -49,16 +49,16 @@ class EmployeeController extends Controller
         }
 
         // Call Sarepay to create virtual account
-        $sarepayResponse = $this->sarepayService->createVirtualAccount($employee);
+        $sarepayResponse = $this->sarepayService->createAccount($employee);
 
-        if ($sarepayResponse['status'] !== 'success') {
-            return response()->json([
-                'message' => 'Failed to create virtual account with Sarepay.',
-                'error' => $sarepayResponse['message'] ?? 'Unknown error'
-            ], 500);
-        }
+        // if ($sarepayResponse['status'] !== 'success') {
+        //     return response()->json([
+        //         'message' => 'Failed to create virtual account with Sarepay.',
+        //         'error' => $sarepayResponse['message'] ?? 'Unknown error'
+        //     ], 500);
+        // }
 
-        $accountData = $sarepayResponse['data'];
+        $accountData = $sarepayResponse;
 
         DB::transaction(function () use ($employee, $accountData) {
             $employee->update(['is_approved' => true]);

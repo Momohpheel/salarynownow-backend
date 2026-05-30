@@ -26,7 +26,23 @@ use Laravel\Sanctum\HasApiTokens;
     'cac_certificate_path',
     'director_id_path',
     'utility_bill_path',
-    'is_approved'
+    'is_approved',
+    'first_name',
+    'last_name',
+    'job_title',
+    'department',
+    'start_date',
+    'bank_name',
+    'account_number',
+    'account_name',
+    'salary',
+    'pfa_name',
+    'rsa_pin',
+    'pension_employee_rate',
+    'pension_employer_rate',
+    'invitation_status',
+    'is_active',
+    'role',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -39,6 +55,11 @@ class User extends Authenticatable
     const TYPE_PARTNER = 'partner';
     const TYPE_ADMIN = 'admin';
 
+    const ROLE_OWNER = 'Owner';
+    const ROLE_FINANCE = 'Finance';
+    const ROLE_HR = 'Hr';
+    const ROLE_VIEWER = 'Viewer';
+
     /**
      * Get the attributes that should be cast.
      *
@@ -50,6 +71,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_approved' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -96,5 +118,32 @@ class User extends Authenticatable
     public function wallet()
     {
         return $this->hasOne(Wallet::class);
+    }
+
+    public function payslips()
+    {
+        return $this->hasMany(Payslip::class);
+    }
+
+    /**
+     * Get the ID of the employer (the account owner).
+     * If the user is an owner, it returns their own ID.
+     * If the user is a team member, it returns their parent's ID.
+     */
+    public function getEmployerId(): int
+    {
+        return $this->type === self::TYPE_EMPLOYEE && $this->parent_id 
+            ? $this->parent_id 
+            : $this->id;
+    }
+
+    /**
+     * Get the actual employer instance.
+     */
+    public function employer()
+    {
+        return $this->type === self::TYPE_EMPLOYEE && $this->parent_id 
+            ? $this->parent() 
+            : $this;
     }
 }

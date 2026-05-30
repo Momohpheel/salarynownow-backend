@@ -35,4 +35,20 @@ class SarepayService
             ]
         ];
     }
+
+    /**
+     * Lookup a bank account.
+     */
+    public function lookupAccount(string $accountNumber, string $bankCode)
+    {
+        // Mocking Sarepay Account Lookup
+        return [
+            'status' => 'success',
+            'data' => [
+                'account_number' => $accountNumber,
+                'account_name' => 'CHIAMAKA OBIOHA',
+                'bank_name' => 'Access Bank',
+            ]
+        ];
+    }
 }

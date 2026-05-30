@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Employee;
 use App\Http\Controllers\Controller;
 use App\Models\Payroll;
 use App\Models\SalaryAdvance;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -12,9 +13,11 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
+        $employerId = $user->getEmployerId();
+        $employer = $user->parent_id ? User::find($employerId) : $user;
 
         // 1. Total Staff
-        $totalStaff = $user->children()->staff()->count();
+        $totalStaff = User::where('parent_id', $employerId)->staff()->count();
 
         // 2. Next Payroll Date (Simulated as 25th of current/next month)
         $today = now();
@@ -23,18 +26,18 @@ class DashboardController extends Controller
             : $today->day(25)->format('jS M Y');
 
         // 3. Last Payroll
-        $lastPayroll = $user->payrolls()
+        $lastPayroll = $employer->payrolls()
             ->where('status', 'completed')
             ->orderBy('processed_at', 'desc')
             ->first();
 
         // 4. Pending Advances
-        $pendingAdvancesCount = $user->salaryAdvances()
+        $pendingAdvancesCount = $employer->salaryAdvances()
             ->where('status', 'pending')
             ->count();
 
         // 5. Recent Payroll Runs
-        $recentPayrolls = $user->payrolls()
+        $recentPayrolls = $employer->payrolls()
             ->orderBy('processed_at', 'desc')
             ->limit(5)
             ->get()
