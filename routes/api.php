@@ -20,6 +20,7 @@ use App\Http\Controllers\Modules\Staff\DashboardController as StaffDashboardCont
 use App\Http\Controllers\Modules\Staff\ProfileController as StaffProfileController;
 use App\Http\Controllers\Modules\Staff\PayslipController as StaffPayslipController;
 use App\Http\Controllers\Modules\Staff\SalaryAdvanceController as StaffSalaryAdvanceController;
+use App\Http\Controllers\Modules\Employee\ReportController as EmployeeReportController;
 use App\Http\Controllers\Modules\Employee\StaffController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -102,5 +103,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/team', [EmployeeTeamController::class, 'store']);
         Route::put('/team/{member}/role', [EmployeeTeamController::class, 'updateRole']);
         Route::post('/team/{member}/toggle-status', [EmployeeTeamController::class, 'toggleStatus']);
+
+        // Reports
+        Route::prefix('reports')->group(function () {
+            Route::get('/payroll-summary', [EmployeeReportController::class, 'payrollSummary']);
+            Route::get('/staff-payments', [EmployeeReportController::class, 'staffPayments']);
+            Route::get('/advances', [EmployeeReportController::class, 'advanceReport']);
+        });
     });
 });
