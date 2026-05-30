@@ -65,7 +65,7 @@ class StaffModuleTest extends TestCase
             'gross_salary' => 800000,
             'pension' => 64000,
             'net_salary' => 736000,
-            'status' => Payslip::STATUS_DISBURSED,
+            'status' => Payslip::STATUS_PROCESSING,
         ]);
 
         $response = $this->actingAs($staff)

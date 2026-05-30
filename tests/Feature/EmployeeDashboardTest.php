@@ -220,7 +220,7 @@ class EmployeeDashboardTest extends TestCase
             'description' => 'May 2026 Salary',
             'amount' => 323834,
             'staff_count' => 2,
-            'status' => Payroll::STATUS_COMPLETED,
+            'status' => Payroll::STATUS_PENDING,
             'processed_at' => now(),
             'period_start' => now()->startOfMonth(),
             'period_end' => now()->endOfMonth(),
@@ -244,7 +244,7 @@ class EmployeeDashboardTest extends TestCase
             'description' => 'May 2026 Salary',
             'amount' => 323834,
             'staff_count' => 1,
-            'status' => \App\Models\Payroll::STATUS_COMPLETED,
+            'status' => \App\Models\Payroll::STATUS_PENDING,
             'processed_at' => now(),
             'period_start' => now()->startOfMonth(),
             'period_end' => now()->endOfMonth(),
@@ -258,7 +258,7 @@ class EmployeeDashboardTest extends TestCase
             'pension' => 28000,
             'other_deductions' => 0,
             'net_salary' => 322000,
-            'status' => \App\Models\Payslip::STATUS_DISBURSED,
+            'status' => \App\Models\Payslip::STATUS_PROCESSING,
         ]);
 
         $response = $this->actingAs($employee)

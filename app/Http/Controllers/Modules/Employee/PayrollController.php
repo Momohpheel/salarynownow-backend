@@ -125,7 +125,7 @@ class PayrollController extends Controller
                 'description' => now()->format('F Y') . ' Salary',
                 'amount' => 0, // Will update after calculation
                 'staff_count' => 0,
-                'status' => \App\Models\Payroll::STATUS_COMPLETED,
+                'status' => \App\Models\Payroll::STATUS_PENDING,
                 'processed_at' => $request->pay_date,
                 'period_start' => $request->period_start,
                 'period_end' => $request->period_end,
@@ -147,7 +147,7 @@ class PayrollController extends Controller
                     'pension' => $pensionEE,
                     'other_deductions' => $deductions,
                     'net_salary' => $netPay,
-                    'status' => Payslip::STATUS_DISBURSED,
+                    'status' => Payslip::STATUS_PROCESSING,
                 ]);
 
                 $totalNetToPay += $netPay;
