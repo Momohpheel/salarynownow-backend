@@ -47,11 +47,9 @@ class EmployeeController extends Controller
         // Call Sarepay to create virtual account
         $sarepayResponse = $this->sarepayService->createAccount($employee);
 
-        if ($sarepayResponse['status'] !== 'success') {
-            return $this->sendError('Failed to create virtual account with Sarepay.', $sarepayResponse['message'] ?? 'Unknown error', 500);
-        }
+       
 
-        $accountData = $sarepayResponse['data'];
+        $accountData = $sarepayResponse;
 
         DB::transaction(function () use ($employee, $accountData) {
             $employee->update(['is_approved' => true]);
@@ -62,10 +60,10 @@ class EmployeeController extends Controller
             ], [
                 'balance' => 0.00,
                 'currency' => 'NGN',
-                'account_number' => $accountData['account_number'],
-                'account_name' => $accountData['account_name'],
-                'account_reference' => $accountData['account_reference'],
-                'bank_name' => $accountData['bank_name'],
+                'account_number' => $accountData->account_number,
+                'account_name' => $accountData->account_name,
+                'account_reference' => $accountData->account_reference,
+                'bank_name' => $accountData->bank_name,
             ]);
         });
 

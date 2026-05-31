@@ -83,12 +83,17 @@ class PayrollController extends Controller
             'total_amount' => 'required|numeric|min:0',
         ]);
 
-        $employer = $request->user()->employer()->first();
+        $employerId = $request->user()->getEmployerId();
+        
+        $employer = User::with('wallet')->find($employerId);
+
         $wallet = $employer->wallet;
+
 
         $isSufficient = $wallet && $wallet->balance >= $request->total_amount;
 
         $data = [
+        
             'is_sufficient' => $isSufficient,
             'current_balance' => '₦' . number_format($wallet?->balance ?? 0, 2),
             'required_amount' => '₦' . number_format($request->total_amount, 2),
@@ -112,8 +117,13 @@ class PayrollController extends Controller
         ]);
 
         $user = $request->user();
-        $employer = $user->employer()->first();
+        // $employer = $user->employer()->first();
+        $employerId = $request->user()->getEmployerId();
+        
+        $employer = User::with('wallet')->find($employerId);
+
         $wallet = $employer->wallet;
+
 
         return DB::transaction(function () use ($request, $employer, $wallet) {
             $totalNetToPay = 0;

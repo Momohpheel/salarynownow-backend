@@ -68,7 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', [StaffDashboardController::class, 'index']);
         Route::get('/profile', [StaffProfileController::class, 'show']);
         Route::post('/bank/verify', [StaffProfileController::class, 'verifyBank']);
-        Route::put('/bank/update', [StaffProfileController::class, 'updateBank']);
+        Route::post('/bank/update', [StaffProfileController::class, 'updateBank']);
         Route::get('/payslips', [StaffPayslipController::class, 'index']);
         Route::get('/salary-advance/eligibility', [StaffSalaryAdvanceController::class, 'eligibility']);
         Route::post('/salary-advance', [StaffSalaryAdvanceController::class, 'store']);
@@ -81,7 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Staff Management
         Route::get('/staff', [StaffController::class, 'index']);
         Route::post('/staff', [StaffController::class, 'store']);
-        Route::put('/staff/{staff}', [StaffController::class, 'update']);
+        Route::post('/staff/{staff}', [StaffController::class, 'update']);
         Route::post('/staff/{staff}/toggle-status', [StaffController::class, 'toggleStatus']);
         Route::post('/staff/{staff}/invite', [StaffController::class, 'invite']);
         Route::post('/staff/bulk-upload', [StaffController::class, 'bulkUpload']);
@@ -101,7 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Team Management
         Route::get('/team', [EmployeeTeamController::class, 'index']);
         Route::post('/team', [EmployeeTeamController::class, 'store']);
-        Route::put('/team/{member}/role', [EmployeeTeamController::class, 'updateRole']);
+        Route::post('/team/{member}/role', [EmployeeTeamController::class, 'updateRole']);
         Route::post('/team/{member}/toggle-status', [EmployeeTeamController::class, 'toggleStatus']);
 
         // Reports
