@@ -40,6 +40,7 @@ class StaffController extends Controller
             'pension_employer_rate' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
+        $password = '123456';
         $staff = User::create([
             'name' => $request->first_name . ' ' . $request->last_name,
             'first_name' => $request->first_name,
@@ -48,6 +49,7 @@ class StaffController extends Controller
             'phone_number' => $request->phone_number,
             'password' => Hash::make(Str::random(12)), // Random password since they'll be invited
             'type' => User::TYPE_STAFF,
+            'password' => Hash::make($password), // Random password since they'll be invited
             'parent_id' => $employerId,
             'job_title' => $request->job_title,
             'department' => $request->department,
