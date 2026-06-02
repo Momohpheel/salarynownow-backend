@@ -112,7 +112,12 @@ class User extends Authenticatable
 
     public function salaryAdvances()
     {
-        return $this->hasMany(SalaryAdvance::class);
+        return $this->hasMany(SalaryAdvance::class, 'user_id');
+    }
+
+    public function staffAdvances()
+    {
+        return $this->hasMany(SalaryAdvance::class, 'staff_id');
     }
 
     public function wallet()

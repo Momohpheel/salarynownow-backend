@@ -16,7 +16,10 @@ class EmployeeDashboardTest extends TestCase
 
     public function test_employee_can_access_dashboard_with_correct_data()
     {
-        $employee = User::factory()->employee()->approved()->create(['name' => 'Demo']);
+        $employee = User::factory()->employee()->approved()->create([
+            'name' => 'Demo',
+            'company_name' => 'InsureGate'
+        ]);
         $employee->wallet()->create([
             'balance' => 600000,
             'currency' => 'NGN',
@@ -25,7 +28,7 @@ class EmployeeDashboardTest extends TestCase
         ]);
         
         // Create 2 staff members
-        User::factory()->staff()->count(2)->create(['parent_id' => $employee->id]);
+        User::factory()->staff()->count(2)->create(['parent_id' => $employee->id, 'is_active' => true]);
         
         // Create a recent payroll
         Payroll::create([
@@ -33,24 +36,29 @@ class EmployeeDashboardTest extends TestCase
             'description' => 'May 2026 Salary',
             'amount' => 323834.00,
             'staff_count' => 2,
-            'status' => 'completed',
+            'status' => Payroll::STATUS_COMPLETED,
             'processed_at' => now()->subDay(),
+            'period_start' => now()->subMonth(),
+            'period_end' => now(),
         ]);
 
-        // Create 1 pending advance
+        // Create 1 approved advance for stats
+        $staff = User::factory()->staff()->create(['parent_id' => $employee->id, 'is_active' => true, 'department' => 'Engineering']);
         SalaryAdvance::create([
             'user_id' => $employee->id,
-            'staff_id' => User::factory()->staff()->create(['parent_id' => $employee->id])->id,
+            'staff_id' => $staff->id,
             'amount' => 50000.00,
-            'status' => 'pending',
+            'status' => 'approved',
         ]);
 
         $response = $this->actingAs($employee)
             ->getJson('/api/employee/dashboard');
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.summary.total_staff.value', 3) // 2 + 1 from advance staff
-            ->assertJsonPath('data.summary.pending_advances.value', 1);
+            ->assertJsonPath('data.stats.staff_count.value', 3)
+            ->assertJsonPath('data.stats.advances_out.value', '₦50,000.00')
+            ->assertJsonPath('data.wallet.balance', '₦600,000')
+            ->assertJsonPath('data.greeting.subtitle', "Here's how InsureGate is moving today.");
     }
 
     public function test_employee_can_add_detailed_staff()

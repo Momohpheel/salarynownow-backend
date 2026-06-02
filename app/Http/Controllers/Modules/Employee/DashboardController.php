@@ -7,6 +7,7 @@ use App\Models\Payroll;
 use App\Models\SalaryAdvance;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -14,64 +15,120 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $employerId = $user->getEmployerId();
-        $employer = $user->parent_id ? User::find($employerId) : $user;
+        $employer = $user->type === User::TYPE_EMPLOYEE && $user->parent_id ? User::find($employerId) : $user;
 
-        // 1. Total Staff
-        $totalStaff = User::where('parent_id', $employerId)->staff()->count();
-
-        // 2. Next Payroll Date (Simulated as 25th of current/next month)
-        $today = now();
-        $nextPayrollDate = $today->day > 25 
-            ? $today->addMonth()->day(25)->format('jS M Y')
-            : $today->day(25)->format('jS M Y');
-
-        // 3. Last Payroll
-        $lastPayroll = $employer->payrolls()
-            ->where('status', 'completed')
-            ->orderBy('processed_at', 'desc')
-            ->first();
-
-        // 4. Pending Advances
-        $pendingAdvancesCount = $employer->salaryAdvances()
-            ->where('status', 'pending')
+        // 1. Stat Cards Data
+        $totalStaff = User::where('parent_id', $employerId)->staff()->where('is_active', true)->count();
+        $newStaffCount = User::where('parent_id', $employerId)->staff()
+            ->where('created_at', '>=', now()->subDays(30))
             ->count();
 
-        // 5. Recent Payroll Runs
+        $lastPayroll = $employer->payrolls()
+            ->where('status', Payroll::STATUS_COMPLETED)
+            ->orderBy('processed_at', 'desc')
+            ->first();
+        
+        $activeAdvances = SalaryAdvance::where('user_id', $employerId)
+            ->where('status', 'approved')
+            ->sum('amount');
+        
+        // 2. Wallet Data
+        $wallet = $employer->wallet;
+        $lastFunding = $wallet ? $wallet->logs()
+            ->where('type', 'credit')
+            ->latest()
+            ->first() : null;
+
+        // 3. Recent Payroll Runs
         $recentPayrolls = $employer->payrolls()
             ->orderBy('processed_at', 'desc')
             ->limit(5)
             ->get()
-            ->map(function ($payroll) {
+            ->map(function ($p) {
                 return [
-                    'description' => $payroll->description,
-                    'meta' => "{$payroll->staff_count} Employees • Monthly",
-                    'amount' => '₦' . number_format($payroll->amount, 2),
-                    'status' => $payroll->status,
-                    'date' => $payroll->processed_at->format('jS M Y'),
+                    'id' => $p->id,
+                    'description' => $p->description,
+                    'meta' => "{$p->staff_count} Employees • Monthly",
+                    'amount' => '₦' . number_format($p->amount, 2),
+                    'status' => ucfirst($p->status),
+                    'date' => $p->processed_at->format('jS M Y'),
+                ];
+            });
+
+        // 4. Advance Utilization by Department
+        $advanceUtilByDept = User::where('parent_id', $employerId)
+            ->staff()
+            ->whereHas('staffAdvances', function($q) {
+                $q->where('status', 'approved');
+            })
+            ->select('department', DB::raw('SUM(salary) as total_salary'))
+            ->groupBy('department')
+            ->get()
+            ->map(function($dept) use ($employerId) {
+                $drawn = SalaryAdvance::whereHas('staff', function($q) use ($dept, $employerId) {
+                    $q->where('department', $dept->department)
+                      ->where('parent_id', $employerId);
+                })->where('status', 'approved')->sum('amount');
+
+                return [
+                    'department' => $dept->department,
+                    'drawn' => '₦' . number_format($drawn, 2),
+                    'raw_drawn' => $drawn
+                ];
+            });
+
+        // 5. Recent Staff Changes (Last 7 days)
+        $recentStaffChanges = User::where('parent_id', $employerId)
+            ->staff()
+            ->where('created_at', '>=', now()->subDays(7))
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function($s) {
+                return [
+                    'name' => $s->name,
+                    'action' => 'Added to ' . ($s->department ?? 'General'),
+                    'date' => $s->created_at->diffForHumans(),
                 ];
             });
 
         $data = [
-            'greeting' => $this->getGreeting() . ", {$user->name}.",
-            'summary' => [
-                'total_staff' => [
+            'greeting' => [
+                'title' => $this->getGreeting() . ", {$user->name}",
+                'subtitle' => "Here's how {$employer->company_name} is moving today.",
+            ],
+            'stats' => [
+                'total_payroll' => [
+                    'value' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 2) : '₦0',
+                    'change' => '↗ 4.2%', // Simulated trend
+                    'label' => 'last run',
+                ],
+                'staff_count' => [
                     'value' => $totalStaff,
-                    'label' => 'Active employees',
+                    'change' => "↗ +{$newStaffCount}",
+                    'label' => 'active',
                 ],
-                'next_payroll_date' => [
-                    'value' => '25th',
-                    'label' => now()->format('M Y'),
+                'advances_out' => [
+                    'value' => '₦' . number_format($activeAdvances, 2),
+                    'change' => '↘ 0% util', // Simulated util
+                    'label' => 'of cap',
                 ],
-                'last_payroll' => [
-                    'value' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 2) : '₦0.00',
-                    'label' => $lastPayroll ? 'Processed ' . $lastPayroll->processed_at->format('j M') : 'No recent payroll',
-                ],
-                'pending_advances' => [
-                    'value' => $pendingAdvancesCount,
-                    'label' => 'Review requests',
+                'pension_filed' => [
+                    'value' => '₦0',
+                    'change' => '↗ On track',
+                    'label' => now()->format('d M Y'),
                 ],
             ],
+            'wallet' => [
+                'balance' => '₦' . number_format($wallet?->balance ?? 0, 0),
+                'meta' => ($lastFunding ? 'Last funded ' . $lastFunding->created_at->format('d M Y') : 'No recent funding') . ' • Auto-debit enabled',
+            ],
             'recent_payroll_runs' => $recentPayrolls,
+            'advance_utilization' => [
+                'overall_percentage' => '0% overall',
+                'items' => $advanceUtilByDept,
+            ],
+            'recent_staff_changes' => $recentStaffChanges,
         ];
 
         return $this->sendResponse($data, 'Dashboard data retrieved successfully');
