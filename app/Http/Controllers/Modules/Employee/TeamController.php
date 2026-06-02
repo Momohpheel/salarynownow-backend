@@ -44,13 +44,14 @@ class TeamController extends Controller
             'role' => ['required', 'string', 'in:Owner,Finance,Hr,Viewer'],
         ]);
 
+          $password = '123456';
         $member = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
             'type' => User::TYPE_EMPLOYEE,
             'parent_id' => $employerId,
-            'password' => Hash::make(Str::random(12)),
+            'password' => Hash::make($password),
             'is_approved' => true,
             'is_active' => true,
         ]);
