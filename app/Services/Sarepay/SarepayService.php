@@ -140,22 +140,23 @@ class SarepayService{
     }
 
     public function createAccount($data){
-        // if (config('app.env') === 'staging' || config('app.env') === 'testing') {
-        //     return (object) [
+        
+        if (config('app.env') === 'staging' || config('app.env') === 'testing') {
+            return (object) [
 
-        //             "account_number" => "1234567890",
-        //             "account_name" => ($data['name'] ?? 'Test') . ' ' . ($data['name'] ?? 'User'),
-        //             "account_reference" => "mock_" . \Illuminate\Support\Str::random(),
-        //             "bank_name" => "Mock Bank",
+                    "account_number" => "1234567890",
+                    "account_name" => ($data['name'] ?? 'Test') . ' ' . ($data['name'] ?? 'User'),
+                    "account_reference" => "mock_" . \Illuminate\Support\Str::random(),
+                    "bank_name" => "Mock Bank",
                 
-        //     ];
-        // }
+            ];
+        }
 
         $accountDto = [
             "last_name" => $data['name'] ?? null,
             "first_name" => $data['name'] ?? null,
             "other_name" => $data['name'] ?? null,
-            "bvn" => $data['bvn'] ?? "22428747257",
+            "bvn" => $data['bvn'] ?? null,
             'type' => "Personal",
             'dob' =>  $data['dob'] ?? "2000-01-01",
             "business_type" => "Main",

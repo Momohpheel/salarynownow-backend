@@ -22,6 +22,7 @@ use App\Http\Controllers\Modules\Staff\PayslipController as StaffPayslipControll
 use App\Http\Controllers\Modules\Staff\SalaryAdvanceController as StaffSalaryAdvanceController;
 use App\Http\Controllers\Modules\Employee\ReportController as EmployeeReportController;
 use App\Http\Controllers\Modules\Employee\StaffController;
+use App\Http\Controllers\Webhooks\SarepayWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,9 @@ Route::get('/user', function (Request $request) {
 
 // Common Utility Routes
 Route::get('/banks', [CommonBankController::class, 'index']);
+
+// Webhooks
+Route::post('/webhooks/sarepay', [SarepayWebhookController::class, 'handle']);
 
 // Employee Module
 Route::post('/employee/register', [EmployeeRegistrationController::class, 'register']);
