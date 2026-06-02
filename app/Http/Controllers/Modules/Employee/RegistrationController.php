@@ -21,6 +21,7 @@ class RegistrationController extends Controller
             
             // Step 2: Company Information
             'company_name' => ['required', 'string', 'max:255'],
+            'bvn' => ['required', 'numeric', 'digits:11'],
             'rc_number' => ['required', 'string', 'max:100'],
             'industry' => ['required', 'string', 'max:255'],
             'company_address' => ['required', 'string'],
@@ -51,7 +52,7 @@ class RegistrationController extends Controller
             'industry' => $request->industry,
             'company_address' => $request->company_address,
             'number_of_staff' => $request->number_of_staff,
-            
+            'bvn' => $request->bvn,
             'cac_certificate_path' => $cacPath,
             'director_id_path' => $directorIdPath,
             'utility_bill_path' => $utilityBillPath,
