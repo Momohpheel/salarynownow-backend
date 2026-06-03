@@ -25,11 +25,11 @@ class LoginController extends Controller
             ]);
         }
 
-        if (! $user->is_approved) {
-            throw ValidationException::withMessages([
-                'email' => ['Your account is pending approval by an administrator.'],
-            ]);
-        }
+        // if (! $user->is_approved) {
+        //     throw ValidationException::withMessages([
+        //         'email' => ['Your account is pending approval by an administrator.'],
+        //     ]);
+        // }
 
         $token = $user->createToken('employee-token')->plainTextToken;
 
