@@ -99,6 +99,13 @@ class DashboardController extends Controller
             });
 
         $data = [
+            'onboarding_status' => [
+                'kyb_submitted' => !empty($employer->rc_number) && !empty($employer->cac_certificate_path),
+                'is_approved' => (bool) $employer->is_approved,
+                'status_message' => $employer->is_approved 
+                    ? 'Your account is fully approved.' 
+                    : (!empty($employer->rc_number) ? 'KYB submitted, awaiting approval.' : 'Please complete your KYB profile.'),
+            ],
             'greeting' => [
                 'title' => $this->getGreeting() . ", {$user->name}",
                 'subtitle' => "Here's how {$employer->company_name} is moving today.",
