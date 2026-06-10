@@ -39,6 +39,13 @@ class RegistrationController extends Controller
             $merchantId = $merchant?->id;
         }
 
+        if (!$merchantId) {
+            $defaultMerchant = User::where('type', User::TYPE_ADMIN)
+                ->where('link_name', 'main')
+                ->first();
+            $merchantId = $defaultMerchant?->id;
+        }
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
