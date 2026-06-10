@@ -67,7 +67,7 @@ class DashboardController extends Controller
             'merchant_info' => [
                 'name' => $admin->name,
                 'link_name' => $admin->link_name,
-                'registration_link' => "https://salaryswift-nigeria.lovable.app/{$admin->link_name}/register",
+                'registration_link' => "{$admin->link_name}/register",
             ],
             'stats' => [
                 'companies' => $companiesCount,
