@@ -56,7 +56,7 @@ class EmployeeDashboardTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.stats.staff_count.value', 3)
-            ->assertJsonPath('data.stats.advances_out.value', '₦50,000.00')
+            ->assertJsonPath('data.stats.advances_out.value', '₦50,000')
             ->assertJsonPath('data.wallet.balance', '₦600,000')
             ->assertJsonPath('data.greeting.subtitle', "Here's how InsureGate is moving today.");
     }

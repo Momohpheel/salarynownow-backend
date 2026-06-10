@@ -4,12 +4,22 @@ namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Wallet;
+use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 
 class RegistrationController extends Controller
 {
+    protected $sarepayService;
+
+    public function __construct(SarepayService $sarepayService)
+    {
+        $this->sarepayService = $sarepayService;
+    }
+
     public function register(Request $request)
     {
         $request->validate([
@@ -18,16 +28,37 @@ class RegistrationController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'phone_number' => ['required', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            
-            // Step 2: Company Information
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone_number' => $request->phone_number,
+            'password' => Hash::make($request->password),
+            'type' => User::TYPE_EMPLOYEE,
+        ]);
+
+        return $this->sendResponse($user, 'Employee registered successfully', true, 201);
+    }
+
+    /**
+     * Complete profile and auto-approve account.
+     */
+    public function completeProfile(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->is_approved) {
+            return $this->sendError('Account is already approved.', null, 400);
+        }
+
+        $request->validate([
             'company_name' => ['required', 'string', 'max:255'],
-            'bvn' => ['required', 'numeric', 'digits:11'],
             'rc_number' => ['required', 'string', 'max:100'],
             'industry' => ['required', 'string', 'max:255'],
             'company_address' => ['required', 'string'],
             'number_of_staff' => ['required', 'integer', 'min:1'],
-            
-            // Step 3: KYB Documents
+            'bvn' => ['required', 'string', 'digits:11'],
             'cac_certificate' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
             'director_id' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
             'utility_bill' => ['nullable', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
@@ -40,24 +71,37 @@ class RegistrationController extends Controller
             ? $request->file('utility_bill')->store('kyb_documents', 'public') 
             : null;
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone_number' => $request->phone_number,
-            'password' => Hash::make($request->password),
-            'type' => User::TYPE_EMPLOYEE,
-            
-            'company_name' => $request->company_name,
-            'rc_number' => $request->rc_number,
-            'industry' => $request->industry,
-            'company_address' => $request->company_address,
-            'number_of_staff' => $request->number_of_staff,
-            'bvn' => $request->bvn,
-            'cac_certificate_path' => $cacPath,
-            'director_id_path' => $directorIdPath,
-            'utility_bill_path' => $utilityBillPath,
-        ]);
+        DB::transaction(function () use ($user, $request, $cacPath, $directorIdPath, $utilityBillPath) {
+            // Update user details
+            $user->update([
+                'company_name' => $request->company_name,
+                'rc_number' => $request->rc_number,
+                'industry' => $request->industry,
+                'company_address' => $request->company_address,
+                'number_of_staff' => $request->number_of_staff,
+                'bvn' => $request->bvn,
+                'cac_certificate_path' => $cacPath,
+                'director_id_path' => $directorIdPath,
+                'utility_bill_path' => $utilityBillPath,
+                'is_approved' => true,
+            ]);
 
-        return $this->sendResponse($user, 'Employee registered successfully', true, 201);
+            // Call Sarepay to create virtual account
+            $accountData = $this->sarepayService->createAccount($user);
+
+            // Create wallet
+            Wallet::firstOrCreate([
+                'user_id' => $user->id,
+            ], [
+                'balance' => 0.00,
+                'currency' => 'NGN',
+                'account_number' => $accountData->account_number,
+                'account_name' => $accountData->account_name,
+                'account_reference' => $accountData->account_reference,
+                'bank_name' => $accountData->bank_name,
+            ]);
+        });
+
+        return $this->sendResponse($user->fresh('wallet'), 'Profile completed and account approved successfully.');
     }
 }

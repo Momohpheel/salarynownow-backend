@@ -23,6 +23,7 @@ use Laravel\Sanctum\HasApiTokens;
     'industry',
     'company_address',
     'number_of_staff',
+    'bvn',
     'cac_certificate_path',
     'director_id_path',
     'utility_bill_path',

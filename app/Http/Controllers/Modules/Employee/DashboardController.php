@@ -24,13 +24,17 @@ class DashboardController extends Controller
             ->count();
 
         $lastPayroll = $employer->payrolls()
-            ->where('status', Payroll::STATUS_COMPLETED)
             ->orderBy('processed_at', 'desc')
             ->first();
         
         $activeAdvances = SalaryAdvance::where('user_id', $employerId)
             ->where('status', 'approved')
             ->sum('amount');
+
+        $totalPension = DB::table('payslips')
+            ->join('payrolls', 'payslips.payroll_id', '=', 'payrolls.id')
+            ->where('payrolls.user_id', $employerId)
+            ->sum('pension');
         
         // 2. Wallet Data
         $wallet = $employer->wallet;
@@ -47,20 +51,16 @@ class DashboardController extends Controller
             ->map(function ($p) {
                 return [
                     'id' => $p->id,
-                    'description' => $p->description,
-                    'meta' => "{$p->staff_count} Employees • Monthly",
-                    'amount' => '₦' . number_format($p->amount, 2),
+                    'title' => $p->processed_at->format('d M Y') . ' run',
+                    'meta' => "{$p->staff_count} employees",
+                    'amount' => $this->formatLargeAmount($p->amount),
                     'status' => ucfirst($p->status),
-                    'date' => $p->processed_at->format('jS M Y'),
                 ];
             });
 
         // 4. Advance Utilization by Department
         $advanceUtilByDept = User::where('parent_id', $employerId)
             ->staff()
-            ->whereHas('staffAdvances', function($q) {
-                $q->where('status', 'approved');
-            })
             ->select('department', DB::raw('SUM(salary) as total_salary'))
             ->groupBy('department')
             ->get()
@@ -70,12 +70,18 @@ class DashboardController extends Controller
                       ->where('parent_id', $employerId);
                 })->where('status', 'approved')->sum('amount');
 
+                $cap = $dept->total_salary * 0.5; // 50% of total salary as cap
+
                 return [
-                    'department' => $dept->department,
-                    'drawn' => '₦' . number_format($drawn, 2),
-                    'raw_drawn' => $drawn
+                    'department' => $dept->department ?? 'General',
+                    'drawn' => '₦' . number_format($drawn, 0),
+                    'cap' => '₦' . $this->formatLargeAmount($cap, 0),
+                    'utilization' => $cap > 0 ? round(($drawn / $cap) * 100) . '%' : '0%',
                 ];
             });
+
+        $totalCap = User::where('parent_id', $employerId)->staff()->sum('salary') * 0.5;
+        $overallUtil = $totalCap > 0 ? round(($activeAdvances / $totalCap) * 100) : 0;
 
         // 5. Recent Staff Changes (Last 7 days)
         $recentStaffChanges = User::where('parent_id', $employerId)
@@ -99,8 +105,8 @@ class DashboardController extends Controller
             ],
             'stats' => [
                 'total_payroll' => [
-                    'value' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 2) : '₦0',
-                    'change' => '↗ 4.2%', // Simulated trend
+                    'value' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 0) : '₦0',
+                    'change' => '↗ 4.2%', 
                     'label' => 'last run',
                 ],
                 'staff_count' => [
@@ -109,29 +115,43 @@ class DashboardController extends Controller
                     'label' => 'active',
                 ],
                 'advances_out' => [
-                    'value' => '₦' . number_format($activeAdvances, 2),
-                    'change' => '↘ 0% util', // Simulated util
+                    'value' => '₦' . number_format($activeAdvances, 0),
+                    'change' => '↘ ' . $overallUtil . '% util', 
                     'label' => 'of cap',
                 ],
                 'pension_filed' => [
-                    'value' => '₦0',
+                    'value' => '₦' . $this->formatLargeAmount($totalPension),
                     'change' => '↗ On track',
                     'label' => now()->format('d M Y'),
                 ],
             ],
             'wallet' => [
                 'balance' => '₦' . number_format($wallet?->balance ?? 0, 0),
-                'meta' => ($lastFunding ? 'Last funded ' . $lastFunding->created_at->format('d M Y') : 'No recent funding') . ' • Auto-debit enabled',
+                'meta' => 'Last funded ' . ($lastFunding ? $lastFunding->created_at->format('d M Y') : now()->format('d M Y')) . ' • Auto-debit enabled',
             ],
             'recent_payroll_runs' => $recentPayrolls,
             'advance_utilization' => [
-                'overall_percentage' => '0% overall',
+                'overall_percentage' => $overallUtil . '% overall',
                 'items' => $advanceUtilByDept,
             ],
             'recent_staff_changes' => $recentStaffChanges,
         ];
 
         return $this->sendResponse($data, 'Dashboard data retrieved successfully');
+    }
+
+    private function formatLargeAmount($amount, $precision = 1)
+    {
+        if ($amount >= 1000000000) {
+            return number_format($amount / 1000000000, $precision) . 'B';
+        }
+        if ($amount >= 1000000) {
+            return number_format($amount / 1000000, $precision) . 'M';
+        }
+        if ($amount >= 1000) {
+            return number_format($amount / 1000, $precision) . 'K';
+        }
+        return number_format($amount, $precision);
     }
 
     private function getGreeting()

@@ -79,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('employee')->group(function () {
+        Route::post('/complete-profile', [EmployeeRegistrationController::class, 'completeProfile']);
         Route::get('/dashboard', [EmployeeDashboardController::class, 'index']);
         Route::get('/wallet', [EmployeeWalletController::class, 'index']);
         
