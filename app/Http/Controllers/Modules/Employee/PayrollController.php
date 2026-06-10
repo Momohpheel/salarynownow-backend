@@ -227,7 +227,7 @@ class PayrollController extends Controller
         $totalGross = $payroll->payslips->sum('gross_salary');
 
         $data = [
-            'payroll_run' => [
+
                 'id' => $payroll->id,
                 'period' => $payroll->period_start->format('d M') . ' — ' . $payroll->period_end->format('d M Y'),
                 'status' => $payroll->status,
@@ -250,7 +250,7 @@ class PayrollController extends Controller
                         'status' => $p->status,
                     ];
                 }),
-            ],
+         
         ];
 
         return $this->sendResponse($data, 'Payroll details retrieved successfully');
