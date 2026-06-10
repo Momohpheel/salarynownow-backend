@@ -15,12 +15,27 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
+        // Create SuperAdmin
+        User::updateOrCreate(
+            ['email' => 'superadmin@salarynownow.com'],
+            [
+                'name' => 'System SuperAdmin',
+                'password' => Hash::make('password'),
+                'type' => User::TYPE_SUPERADMIN,
+                'is_approved' => true,
+                'is_active' => true,
+            ]
+        );
+
+        // Create a default Merchant (Admin)
         User::updateOrCreate(
             ['email' => 'admin@salarynownow.com'],
             [
-                'name' => 'System Admin',
+                'name' => 'Default Merchant',
+                'link_name' => 'main',
                 'password' => Hash::make('password'),
                 'type' => User::TYPE_ADMIN,
+                'status' => 'active',
                 'is_approved' => true,
                 'is_active' => true,
             ]

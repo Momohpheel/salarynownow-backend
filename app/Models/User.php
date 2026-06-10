@@ -13,7 +13,15 @@ use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable([
     'name', 
+    'link_name', 
+    'contact_person',
     'email', 
+    'phone_number',
+    'state',
+    'revenue_share',
+    'plan_tier',
+    'internal_notes',
+    'status',
     'password', 
     'type', 
     'parent_id',
@@ -51,10 +59,11 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    const TYPE_SUPERADMIN = 'superadmin';
+    const TYPE_ADMIN = 'admin'; // Also referred to as Merchants
     const TYPE_EMPLOYEE = 'employee';
     const TYPE_STAFF = 'staff';
     const TYPE_PARTNER = 'partner';
-    const TYPE_ADMIN = 'admin';
 
     const ROLE_OWNER = 'Owner';
     const ROLE_FINANCE = 'Finance';

@@ -47,7 +47,7 @@ class StaffController extends Controller
             'last_name' => $request->last_name,
             'email' => $request->email,
             'phone_number' => $request->phone_number,
-            'password' => Hash::make(Str::random(12)), // Random password since they'll be invited
+            // 'password' => Hash::make(Str::random(12)), // Random password since they'll be invited
             'type' => User::TYPE_STAFF,
             'password' => Hash::make($password), // Random password since they'll be invited
             'parent_id' => $employerId,

@@ -10,6 +10,7 @@ use App\Http\Controllers\Modules\Employee\PayrollController as EmployeePayrollCo
 use App\Http\Controllers\Modules\Employee\TeamController as EmployeeTeamController;
 use App\Http\Controllers\Modules\Employee\ForgotPasswordController as EmployeeForgotPasswordController;
 use App\Http\Controllers\Modules\Admin\LoginController as AdminLoginController;
+use App\Http\Controllers\Modules\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Modules\Admin\EmployeeController as AdminEmployeeController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
@@ -22,6 +23,9 @@ use App\Http\Controllers\Modules\Staff\PayslipController as StaffPayslipControll
 use App\Http\Controllers\Modules\Staff\SalaryAdvanceController as StaffSalaryAdvanceController;
 use App\Http\Controllers\Modules\Employee\ReportController as EmployeeReportController;
 use App\Http\Controllers\Modules\Employee\StaffController;
+use App\Http\Controllers\Modules\SuperAdmin\DashboardController as SuperAdminDashboardController;
+use App\Http\Controllers\Modules\SuperAdmin\LoginController as SuperAdminLoginController;
+use App\Http\Controllers\Modules\SuperAdmin\MerchantController;
 use App\Http\Controllers\Webhooks\SarepayWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +39,15 @@ Route::get('/banks', [CommonBankController::class, 'index']);
 
 // Webhooks
 Route::post('/webhooks/sarepay', [SarepayWebhookController::class, 'handle']);
+
+// SuperAdmin Module
+Route::post('/superadmin/login', [SuperAdminLoginController::class, 'login']);
+Route::middleware(['auth:sanctum'])->prefix('superadmin')->group(function () {
+    Route::get('/dashboard', [SuperAdminDashboardController::class, 'index']);
+    Route::get('/merchants', [MerchantController::class, 'index']);
+    Route::post('/merchants', [MerchantController::class, 'store']);
+    Route::get('/merchants/{merchant}', [MerchantController::class, 'show']);
+});
 
 // Employee Module
 Route::post('/employee/register', [EmployeeRegistrationController::class, 'register']);
@@ -61,8 +74,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [EmployeeLoginController::class, 'logout']); 
 
     // Admin Protected Routes
-    Route::prefix('admin')->group(function () {
+    Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+        Route::get('/dashboard', [AdminDashboardController::class, 'index']);
         Route::get('/employees', [AdminEmployeeController::class, 'index']);
+        Route::get('/kyb-reviews', [AdminEmployeeController::class, 'kybReviews']);
         Route::get('/employees/{employee}', [AdminEmployeeController::class, 'show']);
         Route::post('/employees/{employee}/approve', [AdminEmployeeController::class, 'approve']);
     });

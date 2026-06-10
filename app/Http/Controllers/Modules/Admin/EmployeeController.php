@@ -18,26 +18,93 @@ class EmployeeController extends Controller
         $this->sarepayService = $sarepayService;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $employees = User::employee()->orderBy('created_at', 'desc')->get();
+        $admin = $request->user();
+        
+        $query = User::where('type', User::TYPE_EMPLOYEE)
+            ->where('parent_id', $admin->id);
 
-        return $this->sendResponse($employees, 'Employees retrieved successfully');
-    }
-
-    public function show(User $employee)
-    {
-        if ($employee->type !== User::TYPE_EMPLOYEE) {
-            return $this->sendError('User is not an employee.', null, 404);
+        if ($request->search) {
+            $query->where(function($q) use ($request) {
+                $q->where('company_name', 'like', "%{$request->search}%")
+                  ->orWhere('rc_number', 'like', "%{$request->search}%");
+            });
         }
 
-        return $this->sendResponse($employee->load('wallet'), 'Employee details retrieved successfully');
+        $employees = $query->latest()->get()->map(function($user) {
+            $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
+            $lastPayroll = $user->payrolls()->latest()->first();
+
+            return [
+                'id' => $user->id,
+                'company_name' => $user->company_name ?? '—',
+                'rc_number' => $user->rc_number ?? '—',
+                'staff' => $staffCount,
+                'last_payroll' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 0) : '—',
+                'kyb_status' => $user->is_approved ? 'Approved' : 'Pending',
+                'joined' => $user->created_at->format('d M Y'),
+            ];
+        });
+
+        return $this->sendResponse($employees, 'Companies retrieved successfully');
     }
 
-    public function approve(User $employee)
+    /**
+     * KYB Reviews endpoint
+     */
+    public function kybReviews(Request $request)
     {
-        if ($employee->type !== User::TYPE_EMPLOYEE) {
-            return $this->sendError('User is not an employee.', null, 404);
+        $admin = $request->user();
+        $status = $request->query('status', 'pending'); // pending, approved, rejected
+
+        $query = User::where('type', User::TYPE_EMPLOYEE)
+            ->where('parent_id', $admin->id);
+
+        if ($status === 'pending') {
+            $query->where('is_approved', false);
+        } elseif ($status === 'approved') {
+            $query->where('is_approved', true);
+        }
+
+        $reviews = $query->latest()->get()->map(function($user) {
+            $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
+
+            return [
+                'id' => $user->id,
+                'company' => [
+                    'name' => $user->company_name ?? '—',
+                    'industry' => $user->industry ?? '—',
+                ],
+                'cac_no' => $user->rc_number ?? '—',
+                'submitted' => $user->created_at->format('d M Y'),
+                'staff' => $staffCount,
+                'status' => $user->is_approved ? 'Approved' : 'Pending',
+            ];
+        });
+
+        return $this->sendResponse($reviews, 'KYB reviews retrieved successfully');
+    }
+
+    public function show(Request $request, User $employee)
+    {
+        $admin = $request->user();
+
+        // Ensure the employee belongs to this merchant
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
+            return $this->sendError('Employee not found or unauthorized', null, 404);
+        }
+
+        return $this->sendResponse($employee, 'Employee details retrieved');
+    }
+
+    public function approve(Request $request, User $employee)
+    {
+        $admin = $request->user();
+
+        // Ensure the employee belongs to this merchant
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
+            return $this->sendError('Employee not found or unauthorized', null, 404);
         }
 
         if ($employee->is_approved) {

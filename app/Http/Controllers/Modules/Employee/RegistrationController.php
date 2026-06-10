@@ -28,7 +28,16 @@ class RegistrationController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'phone_number' => ['required', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'merchant' => ['nullable', 'string', 'exists:users,link_name'],
         ]);
+
+        $merchantId = null;
+        if ($request->merchant) {
+            $merchant = User::where('link_name', $request->merchant)
+                ->where('type', User::TYPE_ADMIN)
+                ->first();
+            $merchantId = $merchant?->id;
+        }
 
         $user = User::create([
             'name' => $request->name,
@@ -36,6 +45,7 @@ class RegistrationController extends Controller
             'phone_number' => $request->phone_number,
             'password' => Hash::make($request->password),
             'type' => User::TYPE_EMPLOYEE,
+            'parent_id' => $merchantId, // Assigned under a merchant using slug lookup
         ]);
 
         return $this->sendResponse($user, 'Employee registered successfully', true, 201);
