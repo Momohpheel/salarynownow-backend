@@ -56,6 +56,7 @@ class MerchantController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'link_name' => ['nullable', 'string', 'max:255', 'unique:users,link_name'],
             'contact_person' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'phone_number' => ['required', 'string', 'max:20'],
@@ -75,7 +76,7 @@ class MerchantController extends Controller
             'revenue_share' => $request->revenue_share,
             'plan_tier' => $request->plan_tier,
             'internal_notes' => $request->internal_notes,
-            'link_name' => Str::slug($request->name),
+            'link_name' => $request->link_name ?? Str::slug($request->name),
             'password' => Hash::make($request->password),
             'type' => User::TYPE_ADMIN,
             'status' => 'active',
