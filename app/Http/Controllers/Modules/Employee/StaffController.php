@@ -34,10 +34,10 @@ class StaffController extends Controller
             'salary' => ['required', 'numeric', 'min:0'],
 
             // Pension Details
-            'pfa_name' => ['required', 'string', 'max:255'],
-            'rsa_pin' => ['required', 'string', 'max:50'],
-            'pension_employee_rate' => ['required', 'numeric', 'min:0', 'max:100'],
-            'pension_employer_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            // 'pfa_name' => ['required', 'string', 'max:255'],
+            // 'rsa_pin' => ['required', 'string', 'max:50'],
+            // 'pension_employee_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            // 'pension_employer_rate' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $password = '123456';
