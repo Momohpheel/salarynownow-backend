@@ -103,7 +103,7 @@ class StaffController extends Controller
                 'is_active' => $s->is_active,
                 'department' => $s->department ?? '-',
                 'job_title' => $s->job_title ?? '-',
-                'start_date' => $s->start_date->diffForHumans() ?? '-',
+                'start_date' => \Carbon\Carbon::parse($s->start_date)?->diffForHumans() ?? '-'
             ];
         });
 
