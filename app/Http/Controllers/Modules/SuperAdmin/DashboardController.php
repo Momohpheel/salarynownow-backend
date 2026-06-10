@@ -47,35 +47,19 @@ class DashboardController extends Controller
 
         $data = [
             'stats' => [
-                'merchants' => [
-                    'value' => $merchantsCount,
-                    'change' => '↗ +2 this month', // Placeholder
-                ],
-                'active_merchants' => [
-                    'value' => $activeMerchants,
-                    'meta' => "{$suspendedMerchants} suspended",
-                ],
-                'employers' => [
-                    'value' => $employersCount,
-                    'change' => '↗ +5 vs last month', // Placeholder
-                ],
-                'staff_reach' => [
-                    'value' => $staffCount,
-                    'change' => '↗ +12% vs last month', // Placeholder
-                ],
-                'platform_revenue' => [
-                    'value' => '₦' . $this->formatLargeAmount($totalGrossPayroll * 0.05), // Placeholder 5% take
-                    'change' => '↗ +8.3% vs last month',
-                ]
+                'merchants' => $merchantsCount,
+                    
+                'active_merchants' => $activeMerchants,
+                    
+                'employers' =>  $employersCount,
+                    
+                'staff_reach' => $staffCount,
+                    
+                'platform_revenue' => '₦' . $this->formatLargeAmount($totalGrossPayroll * 0.05), // Placeholder 5% take
+                    
             ],
-            'merchant_hierarchy' => $merchants,
-            'approvals' => [
-                'pending_count' => 4, // Placeholder
-                'items' => [
-                    ['title' => 'Kobo Partners', 'type' => 'New merchant', 'date' => '30 May 2026', 'status' => 'pending'],
-                    // ... other placeholders
-                ]
-            ],
+            'merchant' => $merchants,
+            'approvals' =>  $merchants,
             'revenue_waterfall' => [
                 'gross_payroll' => '₦' . number_format($totalGrossPayroll, 0),
                 'merchant_share' => '₦' . number_format($totalGrossPayroll * 0.02, 0),
