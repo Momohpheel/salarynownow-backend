@@ -28,12 +28,12 @@ class RegistrationController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'phone_number' => ['required', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'merchant' => ['nullable', 'string', 'exists:users,link_name'],
+            'link_name' => ['nullable', 'string', 'exists:users,link_name'],
         ]);
 
         $merchantId = null;
-        if ($request->merchant) {
-            $merchant = User::where('link_name', $request->merchant)
+        if ($request->link_name) {
+            $merchant = User::where('link_name', $request->link_name)
                 ->where('type', User::TYPE_ADMIN)
                 ->first();
             $merchantId = $merchant?->id;
