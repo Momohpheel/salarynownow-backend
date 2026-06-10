@@ -101,6 +101,9 @@ class StaffController extends Controller
                 'salary' => '₦' . number_format($s->salary, 2),
                 'status' => $s->invitation_status,
                 'is_active' => $s->is_active,
+                'department' => $s->department ?? '-',
+                'job_title' => $s->job_title ?? '-',
+                'start_date' => $s->start_date->diffForHumans() ?? '-',
             ];
         });
 
