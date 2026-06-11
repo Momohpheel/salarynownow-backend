@@ -64,9 +64,10 @@ class MerchantController extends Controller
             'revenue_share' => ['required', 'numeric', 'min:0', 'max:100'],
             'plan_tier' => ['required', 'string'],
             'internal_notes' => ['nullable', 'string'],
-            'password' => ['required', Rules\Password::defaults()],
+            //'password' => ['required', Rules\Password::defaults()],
         ]);
 
+         $password = '123456';
         $merchant = User::create([
             'name' => $request->name,
             'contact_person' => $request->contact_person,
@@ -77,7 +78,7 @@ class MerchantController extends Controller
             'plan_tier' => $request->plan_tier,
             'internal_notes' => $request->internal_notes,
             'link_name' => $request->link_name ?? Str::slug($request->name),
-            'password' => Hash::make($request->password),
+            'password' => Hash::make($password),
             'type' => User::TYPE_ADMIN,
             'status' => 'active',
             'is_approved' => true,
