@@ -15,7 +15,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $employerId = $user->getEmployerId();
-        $employer = $user->type === User::TYPE_EMPLOYEE && $user->parent_id ? User::find($employerId) : $user;
+        $employer = $user->type === User::TYPE_EMPLOYEE ? User::find($employerId) : $user;
 
         // 1. Stat Cards Data
         $totalStaff = User::where('parent_id', $employerId)->staff()->where('is_active', true)->count();
