@@ -65,7 +65,7 @@ class RegistrationController extends Controller
     {
         $user = $request->user();
 
-        if ($user->is_approved) {
+        if ($user->is_approved || !empty($user->rc_number) || !empty($user->cac_certificate_path)) {
             return $this->sendError('Account is already approved.', null, 400);
         }
 
@@ -76,9 +76,9 @@ class RegistrationController extends Controller
             'company_address' => ['required', 'string'],
             'number_of_staff' => ['required', 'integer', 'min:1'],
             'bvn' => ['required', 'string', 'digits:11'],
-            'cac_certificate' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
-            'director_id' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
-            'utility_bill' => ['nullable', 'file', 'mimes:pdf,jpg,png', 'max:5120'],
+            'cac_certificate' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:2048'],
+            'director_id' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:2048'],
+            'utility_bill' => ['nullable', 'file', 'mimes:pdf,jpg,png', 'max:2048'],
         ]);
 
         // Handle file uploads
