@@ -17,6 +17,8 @@ class DashboardController extends Controller
         $employerId = $user->getEmployerId();
         $employer = $user->type === User::TYPE_EMPLOYEE ? User::find($employerId) : $user;
 
+        $employer->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
+
         // 1. Stat Cards Data
         $totalStaff = User::where('employer_id', $employerId)->staff()->where('is_active', true)->count();
         $newStaffCount = User::where('employer_id', $employerId)->staff()

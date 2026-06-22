@@ -33,6 +33,8 @@ class LoginController extends Controller
 
         $token = $user->createToken('employee-token')->plainTextToken;
 
+        $user->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
+
         return $this->sendResponse([
             'user' => $user,
             'token' => $token,
