@@ -33,6 +33,8 @@ class SarepayWebhookController extends Controller
 
     public function handle(Request $request)
     {
+             $payload = $request->all();
+        Log::info('Sarepay Webhook Received:', $payload);
         if (strpos($request->event, "generate.virtualaccount.successful") !== false){
             return $this->updateVA($request);
         } else if (strpos($request->event, "collection.virtualaccount.successful") !== false) {
@@ -48,7 +50,7 @@ class SarepayWebhookController extends Controller
     {
         $payload = $request->all();
         
-        Log::info('Sarepay Webhook Received:', $payload);
+        //Log::info('Sarepay Webhook Received:', $payload);
 
         // 1. Validate the event type
         // if (($payload['event'] ?? '') !== 'collection.virtualaccount.successful') {
