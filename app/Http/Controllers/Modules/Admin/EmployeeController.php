@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Modules\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\EmployerApproved;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class EmployeeController extends Controller
 {
@@ -133,6 +135,8 @@ class EmployeeController extends Controller
                 'bank_name' => $accountData->bank_name,
             ]);
         });
+
+        Mail::to($employee->email)->send(new EmployerApproved($employee));
 
         return $this->sendResponse($employee->fresh('wallet'), 'Employee approved and virtual account created successfully.');
     }

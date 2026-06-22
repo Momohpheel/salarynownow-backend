@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\EmployerRegistered;
+use App\Mail\ProfileCompleted;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules;
 
 class RegistrationController extends Controller
@@ -54,6 +57,8 @@ class RegistrationController extends Controller
             'type' => User::TYPE_EMPLOYEE,
             'parent_id' => $merchantId, // Assigned under a merchant using slug lookup
         ]);
+
+        Mail::to($user->email)->send(new EmployerRegistered($user));
 
         return $this->sendResponse($user, 'Employee registered successfully', true, 201);
     }
@@ -118,6 +123,8 @@ class RegistrationController extends Controller
                 'bank_name' => $accountData->bank_name,
             ]);
         });
+
+        Mail::to($user->email)->send(new ProfileCompleted($user));
 
         return $this->sendResponse($user->fresh('wallet'), 'Profile completed and account approved successfully.');
     }
