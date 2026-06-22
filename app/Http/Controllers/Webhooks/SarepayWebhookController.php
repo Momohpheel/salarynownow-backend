@@ -13,16 +13,47 @@ use Illuminate\Support\Facades\Mail;
 
 class SarepayWebhookController extends Controller
 {
+
+    public function updateVA(Request $request)
+    {
+        $data = $request->all()['data'];
+        if ($data['status'] == "Successful") {
+            $dto = [
+                'account_reference' => $data['reference'],
+                'account_number' => $data['account_number'],
+                'account_name' => $data['account_name'],
+                'status' => $data['status'],
+                // 'bank_name' => $data['bank'] ?? 'Unknown Bank',
+            ];
+            // Find and update wallet by account reference
+            Wallet::where('account_reference', $dto['account_reference'])->update($dto);
+        }
+        return response()->json(['message' => 'Virtual account update processed'], 200);
+    }
+
     public function handle(Request $request)
+    {
+        if (strpos($request->event, "generate.virtualaccount.successful") !== false){
+            return $this->updateVA($request);
+        } else if (strpos($request->event, "collection.virtualaccount.successful") !== false) {
+            return $this->virtualAccountWebHook($request);
+        }
+        // else if (strpos($request->event, "transfer") !== false) {
+        //     return $this->transferWebHook($request);
+        // }
+        return response()->json(['message' => 'Webhook event received'], 200);
+    }
+
+    public function virtualAccountWebHook(Request $request)
     {
         $payload = $request->all();
         
         Log::info('Sarepay Webhook Received:', $payload);
 
         // 1. Validate the event type
-        if (($payload['event'] ?? '') !== 'collection.virtualaccount.successful') {
-            return response()->json(['message' => 'Event ignored'], 200);
-        }
+        // if (($payload['event'] ?? '') !== 'collection.virtualaccount.successful') {
+        //     return response()->json(['message' => 'Event ignored'], 200);
+        // }
 
         $data = $payload['data'] ?? [];
         $accountReference = $data['customer_reference'] ?? null;

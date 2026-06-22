@@ -6,7 +6,7 @@ use App\Enums\Sarepay;
 use App\Utilities\Helpers;
 use Exception;
 use GuzzleHttp\Client;
-
+use Illuminate\Support\Facades\Log;
 
 class SarepayService{
 
@@ -140,32 +140,54 @@ class SarepayService{
     }
 
     public function createAccount($data){
+        // Normalize data to use object properties if it's a User model
+        $isModel = is_object($data);
+        $userId = $isModel ? $data->id : (isset($data['id']) ? $data['id'] : null);
+        
+        // Generate a unique customer reference if not provided
+        
+        $customerReference = 'SNN_' . $userId . '_' . \Illuminate\Support\Str::random(12);
+       
         
         if (config('app.env') === 'staging' || config('app.env') === 'testing') {
             return (object) [
-
-                    "account_number" => "1234567890",
-                    "account_name" => ($data['name'] ?? 'Test') . ' ' . ($data['name'] ?? 'User'),
-                    "account_reference" => "mock_" . \Illuminate\Support\Str::random(),
-                    "bank_name" => "Mock Bank",
-                
+                "account_number" => "1234567890",
+                "account_name" => ($isModel ? $data->name : ($data['name'] ?? 'Test')) . ' ' . ($isModel ? $data->name : ($data['name'] ?? 'User')),
+                "account_reference" => $customerReference,
+                "bank_name" => "Mock Bank",
             ];
         }
 
         $accountDto = [
-            "last_name" => $data['name'] ?? null,
-            "first_name" => $data['name'] ?? null,
-            "other_name" => $data['name'] ?? null,
-            "bvn" => $data['bvn'] ?? null,
-            'type' => "Personal",
-            'dob' =>  $data['dob'] ?? "2000-01-01",
+            "customer_reference" => $customerReference,
+            "first_name" => $isModel ? ($data->first_name ?? $data->name) : ($data['first_name'] ?? $data['name'] ?? "Test"),
+            "last_name" => $isModel ? ($data->last_name ?? $data->name) : ($data['last_name'] ?? $data['name'] ?? "User"),
+            "other_name" => $isModel ? $data->name : ($data['name'] ?? "Jeff"),
+            "dob" => $isModel ? ($data->dob ?? "2000-01-01") : ($data['dob'] ?? "2000-01-01"),
+            "city" => $isModel ? "Lagos" : ($data['city'] ?? "Lagos"),
+            "state" => $isModel ? "Lagos" : ($data['state'] ?? "Lagos"),
+            "gender" => $isModel ? "Male" : ($data['gender'] ?? "Male"),
+            "marital_status" => $isModel ? "SINGLE" : ($data['marital_status'] ?? "SINGLE"),
+            "address" => $isModel ? ($data->company_address ?? "Test Address") : ($data['company_address'] ?? "Test Address"),
+            "email" => $isModel ? $data->email : ($data['email'] ?? null),
+            "business_name" => $isModel ? ($data->company_name ?? "Test Business") : ($data['company_name'] ?? "Test Business"),
+            "bvn" => $isModel ? $data->bvn : ($data['bvn'] ?? null),
+            "phone_number" => $isModel ? $data->phone_number : ($data['phone_number'] ?? null),
             "business_type" => "Main",
+            "type" => "Corporate",
+            "rc_number" => $isModel ? $data->rc_number : ($data['rc_number'] ?? null),
+            "corporate_account_type" => "COMPANY",
             "currency" => "NGN",
-            "phone_number" => $data["phone_number"] ?? null,
+            "channel" => "Globus",
         ];
+
+        Log::info([$accountDto]);
 
         $endpoint = $this->constant('base_url') . '/virtual-accounts/permanents';
         $response = $this->apiPost($endpoint, $accountDto);
+
+        Log::info([$response]);
+        
         $this->checkFalseAccount($response);
         $response = $response->data;
         return (object) [
