@@ -17,7 +17,7 @@ class PayrollController extends Controller
     public function configure(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
-        $staff = User::where('parent_id', $employerId)->staff()->where('is_active', true)->get();
+        $staff = User::where('employer_id', $employerId)->staff()->where('is_active', true)->get();
 
         $totalGross = $staff->sum('salary');
         // Simple net calculation: Gross - Pension (EE 8%)
@@ -42,7 +42,7 @@ class PayrollController extends Controller
     public function review(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
-        $staff = User::where('parent_id', $employerId)->staff()->where('is_active', true)->get();
+        $staff = User::where('employer_id', $employerId)->staff()->where('is_active', true)->get();
 
         $staffDetails = $staff->map(function($s) {
             $pensionEE = $s->salary * ($s->pension_employee_rate / 100);
@@ -143,7 +143,7 @@ class PayrollController extends Controller
 
             foreach ($request->staff_data as $item) {
                 $staff = User::find($item['id']);
-                if ($staff->parent_id !== $employer->id) continue;
+                if ($staff->employer_id !== $employer->id) continue;
 
                 $pensionEE = $staff->salary * ($staff->pension_employee_rate / 100);
                 $deductions = $item['deductions'] ?? 0;

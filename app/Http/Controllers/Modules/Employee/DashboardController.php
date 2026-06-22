@@ -18,8 +18,8 @@ class DashboardController extends Controller
         $employer = $user->type === User::TYPE_EMPLOYEE ? User::find($employerId) : $user;
 
         // 1. Stat Cards Data
-        $totalStaff = User::where('parent_id', $employerId)->staff()->where('is_active', true)->count();
-        $newStaffCount = User::where('parent_id', $employerId)->staff()
+        $totalStaff = User::where('employer_id', $employerId)->staff()->where('is_active', true)->count();
+        $newStaffCount = User::where('employer_id', $employerId)->staff()
             ->where('created_at', '>=', now()->subDays(30))
             ->count();
 
@@ -59,7 +59,7 @@ class DashboardController extends Controller
             });
 
         // 4. Advance Utilization by Department
-        $advanceUtilByDept = User::where('parent_id', $employerId)
+        $advanceUtilByDept = User::where('employer_id', $employerId)
             ->staff()
             ->select('department', DB::raw('SUM(salary) as total_salary'))
             ->groupBy('department')
@@ -67,7 +67,7 @@ class DashboardController extends Controller
             ->map(function($dept) use ($employerId) {
                 $drawn = SalaryAdvance::whereHas('staff', function($q) use ($dept, $employerId) {
                     $q->where('department', $dept->department)
-                      ->where('parent_id', $employerId);
+                      ->where('employer_id', $employerId);
                 })->where('status', 'approved')->sum('amount');
 
                 $cap = $dept->total_salary * 0.5; // 50% of total salary as cap
@@ -80,11 +80,11 @@ class DashboardController extends Controller
                 ];
             });
 
-        $totalCap = User::where('parent_id', $employerId)->staff()->sum('salary') * 0.5;
+        $totalCap = User::where('employer_id', $employerId)->staff()->sum('salary') * 0.5;
         $overallUtil = $totalCap > 0 ? round(($activeAdvances / $totalCap) * 100) : 0;
 
         // 5. Recent Staff Changes (Last 7 days)
-        $recentStaffChanges = User::where('parent_id', $employerId)
+        $recentStaffChanges = User::where('employer_id', $employerId)
             ->staff()
             ->where('created_at', '>=', now()->subDays(7))
             ->orderBy('created_at', 'desc')

@@ -72,7 +72,7 @@ class StaffController extends Controller
     public function index(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
-        $query = User::where('parent_id', $employerId)->staff();
+        $query = User::where('employer_id', $employerId)->staff();
 
         // Search by name, email, or phone
         if ($request->has('search')) {
@@ -114,7 +114,7 @@ class StaffController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
+        if ($staff->employer_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
@@ -146,7 +146,7 @@ class StaffController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
+        if ($staff->employer_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
@@ -159,7 +159,7 @@ class StaffController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
+        if ($staff->employer_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 

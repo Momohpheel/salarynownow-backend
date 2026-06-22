@@ -50,7 +50,7 @@ class TeamController extends Controller
             'email' => $request->email,
             'role' => $request->role,
             'type' => User::TYPE_EMPLOYEE,
-            'parent_id' => $employerId,
+            'employer_id' => $employerId,
             'password' => Hash::make($password),
             'is_approved' => true,
             'is_active' => true,
@@ -63,7 +63,7 @@ class TeamController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        if ($member->parent_id !== $employerId) {
+        if ($member->employer_id !== $employerId) {
             return $this->sendError('Unauthorized.', null, 403);
         }
 
@@ -80,7 +80,7 @@ class TeamController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        if ($member->parent_id !== $employerId) {
+        if ($member->employer_id !== $employerId) {
             return $this->sendError('Unauthorized.', null, 403);
         }
 

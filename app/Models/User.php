@@ -107,7 +107,7 @@ class User extends Authenticatable
 
     public function parent()
     {
-        return $this->belongsTo(User::class, 'parent_id');
+        return $this->belongsTo(User::class, 'employer_id');
     }
 
     public function children()
@@ -147,8 +147,8 @@ class User extends Authenticatable
      */
     public function getEmployerId(): int
     {
-        return $this->type === self::TYPE_EMPLOYEE && $this->parent_id 
-            ? $this->parent_id 
+        return $this->type === self::TYPE_EMPLOYEE && $this->employer_id 
+            ? $this->employer_id 
             : $this->id;
     }
 
@@ -157,7 +157,7 @@ class User extends Authenticatable
      */
     public function employer()
     {
-        return $this->type === self::TYPE_EMPLOYEE && $this->parent_id 
+        return $this->type === self::TYPE_EMPLOYEE && $this->employer_id 
             ? $this->parent() 
             : $this;
     }
