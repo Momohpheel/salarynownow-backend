@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\StaffInvitation;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 
@@ -163,8 +166,19 @@ class StaffController extends Controller
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
-        // Simulate sending mail
-        $staff->update(['invitation_status' => 'Activated']); // For demo purposes, we'll mark as activated
+        $employer = User::find($employerId);
+        
+        // Create a password reset token
+        $token = Password::createToken($staff);
+        
+        // Generate the invite link (you can customize this based on your frontend URL)
+        $inviteLink = config('app.frontend_url', 'http://localhost:3000') . '/reset-password?token=' . $token . '&email=' . urlencode($staff->email);
+        
+        // Send the email
+        Mail::to($staff->email)->send(new StaffInvitation($staff, $employer, $inviteLink));
+        
+        // Update invitation status
+        $staff->update(['invitation_status' => 'Invited']);
 
         return $this->sendResponse(['invitation_status' => $staff->invitation_status], "Invitation sent to {$staff->email}");
     }

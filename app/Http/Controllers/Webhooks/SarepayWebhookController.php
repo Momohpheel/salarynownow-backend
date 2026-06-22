@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
+use App\Mail\WalletInflow;
 use App\Models\Wallet;
 use App\Models\WalletLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class SarepayWebhookController extends Controller
 {
@@ -53,7 +55,7 @@ class SarepayWebhookController extends Controller
             $wallet->increment('balance', $amount);
             
             // Log the transaction
-            $wallet->logs()->create([
+            $walletLog = $wallet->logs()->create([
                 'amount' => $amount,
                 'type' => 'credit',
                 'description' => "Wallet Topup via Virtual Account",
@@ -66,6 +68,12 @@ class SarepayWebhookController extends Controller
                     'sender_bank' => $data['sender']['originatorBank'] ?? 'Unknown',
                 ]
             ]);
+
+            // Send email notification
+            $user = $wallet->user;
+            if ($user) {
+                Mail::to($user->email)->send(new WalletInflow($walletLog, $user));
+            }
 
             return response()->json(['status' => true, 'message' => 'Wallet credited successfully'], 200);
         });

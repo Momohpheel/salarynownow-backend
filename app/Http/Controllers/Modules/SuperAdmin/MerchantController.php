@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Modules\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\AdminCreated;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules;
 use Illuminate\Support\Str;
 
@@ -84,6 +86,8 @@ class MerchantController extends Controller
             'is_approved' => true,
             'is_active' => true,
         ]);
+
+        Mail::to($merchant->email)->send(new AdminCreated($merchant, $password));
 
         return $this->sendResponse($merchant, 'Merchant invited successfully', true, 201);
     }

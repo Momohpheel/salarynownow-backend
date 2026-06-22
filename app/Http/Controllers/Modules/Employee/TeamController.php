@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TeamMemberAdded;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class TeamController extends Controller
@@ -37,6 +39,7 @@ class TeamController extends Controller
     public function store(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
+        $employer = User::find($employerId);
 
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -55,6 +58,8 @@ class TeamController extends Controller
             'is_approved' => true,
             'is_active' => true,
         ]);
+
+        Mail::to($member->email)->send(new TeamMemberAdded($member, $employer, $password));
 
         return $this->sendResponse($member, 'Team member added successfully', true, 201);
     }

@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PayslipMail;
+use App\Mail\PayrollCompleted;
 use App\Models\User;
 use App\Models\Payslip;
 use App\Models\WalletLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class PayrollController extends Controller
 {
@@ -129,6 +132,7 @@ class PayrollController extends Controller
             $totalNetToPay = 0;
             $staffCount = 0;
             $totalGross = 0;
+            $payslips = [];
 
             $payroll = \App\Models\Payroll::create([
                 'user_id' => $employer->id,
@@ -149,7 +153,7 @@ class PayrollController extends Controller
                 $deductions = $item['deductions'] ?? 0;
                 $netPay = $staff->salary - $pensionEE - $deductions;
 
-                Payslip::create([
+                $payslip = Payslip::create([
                     'user_id' => $staff->id,
                     'payroll_id' => $payroll->id,
                     'period' => $payroll->period_start->format('M Y'),
@@ -157,9 +161,10 @@ class PayrollController extends Controller
                     'pension' => $pensionEE,
                     'other_deductions' => $deductions,
                     'net_salary' => $netPay,
-                    'status' => Payslip::STATUS_PROCESSING,
+                    'status' => Payslip::STATUS_DISBURSED,
                 ]);
 
+                $payslips[] = $payslip;
                 $totalNetToPay += $netPay;
                 $totalGross += $staff->salary;
                 $staffCount++;
@@ -174,6 +179,7 @@ class PayrollController extends Controller
             $payroll->update([
                 'amount' => $totalNetToPay,
                 'staff_count' => $staffCount,
+                //'status' => \App\Models\Payroll::STATUS_COMPLETED,
             ]);
 
             // Deduct from wallet
@@ -189,6 +195,16 @@ class PayrollController extends Controller
                 'balance_after' => $wallet->balance,
                 'metadata' => ['payroll_id' => $payroll->id]
             ]);
+
+            // Send payslip emails
+            // foreach ($payslips as $payslip) {
+            //     $payslip->load('user');
+            //     Mail::to($payslip->user->email)->send(new PayslipMail($payslip));
+            // }
+
+            // // Send payroll completed email to employer
+            // $payroll->load('user');
+            // Mail::to($payroll->user->email)->send(new PayrollCompleted($payroll));
 
             return $this->sendResponse($payroll, 'Payroll processed successfully', true, 201);
         });

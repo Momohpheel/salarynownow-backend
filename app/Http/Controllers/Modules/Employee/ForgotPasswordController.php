@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ResetPasswordMail;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rules;
 
@@ -13,7 +15,6 @@ class ForgotPasswordController extends Controller
 {
     /**
      * Send a reset link/code to the user's email.
-     * For this implementation, we'll simulate sending and just return a success message.
      */
     public function sendResetLink(Request $request)
     {
@@ -25,8 +26,9 @@ class ForgotPasswordController extends Controller
             return $this->sendResponse(null, 'If this email exists in our system, you will receive a reset link.');
         }
 
-        // In a real app, you'd use Password::sendResetLink()
-        // For now, we simulate the success.
+        $token = Password::createToken($user);
+        Mail::to($user->email)->send(new ResetPasswordMail($token, $user->email));
+
         return $this->sendResponse(null, 'Reset link sent successfully to your email.');
     }
 
@@ -38,19 +40,22 @@ class ForgotPasswordController extends Controller
         $request->validate([
             'email' => 'required|email',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'token' => 'required', // Simulated token
+            'token' => 'required',
         ]);
 
-        $user = User::employee()->where('email', $request->email)->first();
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                ])->save();
+            }
+        );
 
-        if (!$user) {
-            return $this->sendError('User not found.', null, 404);
+        if ($status === Password::PASSWORD_RESET) {
+            return $this->sendResponse(null, 'Password has been reset successfully.');
         }
 
-        $user->forceFill([
-            'password' => Hash::make($request->password),
-        ])->save();
-
-        return $this->sendResponse(null, 'Password has been reset successfully.');
+        return $this->sendError('Failed to reset password.', null, 400);
     }
 }
