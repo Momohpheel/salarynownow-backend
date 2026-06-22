@@ -41,6 +41,8 @@ use Laravel\Sanctum\HasApiTokens;
     'job_title',
     'department',
     'start_date',
+    'dob',
+    'state_of_origin',
     'bank_name',
     'account_number',
     'account_name',
@@ -83,6 +85,30 @@ class User extends Authenticatable
             'is_approved' => 'boolean',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Get the full URL for the CAC certificate.
+     */
+    public function getCacCertificateUrlAttribute(): ?string
+    {
+        return $this->cac_certificate_path ? asset('storage/' . $this->cac_certificate_path) : null;
+    }
+
+    /**
+     * Get the full URL for the director ID.
+     */
+    public function getDirectorIdUrlAttribute(): ?string
+    {
+        return $this->director_id_path ? asset('storage/' . $this->director_id_path) : null;
+    }
+
+    /**
+     * Get the full URL for the utility bill.
+     */
+    public function getUtilityBillUrlAttribute(): ?string
+    {
+        return $this->utility_bill_path ? asset('storage/' . $this->utility_bill_path) : null;
     }
 
     public function scopeEmployee($query)

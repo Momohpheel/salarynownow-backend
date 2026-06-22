@@ -27,6 +27,8 @@ class StaffController extends Controller
             'job_title' => ['required', 'string', 'max:255'],
             'department' => ['required', 'string', 'max:255'],
             'start_date' => ['required', 'date'],
+            'dob' => ['nullable', 'date'],
+            'state_of_origin' => ['nullable', 'string', 'max:255'],
 
             // Bank Details
             'bank_name' => ['required', 'string', 'max:255'],
@@ -57,6 +59,8 @@ class StaffController extends Controller
             'job_title' => $request->job_title,
             'department' => $request->department,
             'start_date' => $request->start_date,
+            'dob' => $request->dob,
+            'state_of_origin' => $request->state_of_origin,
             'bank_name' => $request->bank_name,
             'account_number' => $request->account_number,
             'account_name' => $request->account_name,
@@ -106,7 +110,7 @@ class StaffController extends Controller
                 'is_active' => $s->is_active,
                 'department' => $s->department ?? '-',
                 'job_title' => $s->job_title ?? '-',
-                'start_date' => \Carbon\Carbon::parse($s->start_date)?->diffForHumans() ?? '-'
+                'start_date' => $s->start_date ?? '-'
             ];
         });
 
@@ -129,11 +133,13 @@ class StaffController extends Controller
             'job_title' => ['sometimes', 'string', 'max:255'],
             'department' => ['sometimes', 'string', 'max:255'],
             'salary' => ['sometimes', 'numeric', 'min:0'],
+            'dob' => ['sometimes', 'nullable', 'date'],
+            'state_of_origin' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
         $data = $request->only([
             'first_name', 'last_name', 'email', 'phone_number', 
-            'job_title', 'department', 'salary'
+            'job_title', 'department', 'salary', 'dob', 'state_of_origin'
         ]);
 
         if ($request->has('first_name') || $request->has('last_name')) {
@@ -153,9 +159,15 @@ class StaffController extends Controller
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
-        $staff->update(['is_active' => !$staff->is_active]);
+        $request->validate([
+            'status' => ['required', 'string', 'in:Active,On Leave,Offboarded'],
+        ]);
 
-        return $this->sendResponse(['is_active' => $staff->is_active], 'Staff status updated successfully');
+        $status = $request->status;
+
+        $staff->update(['invitation_status' => $status]);
+
+        return $this->sendResponse(['status' => $staff->invitation_status], 'Staff status updated successfully');
     }
 
     public function invite(Request $request, User $staff)

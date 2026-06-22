@@ -35,7 +35,7 @@ class EmployeeController extends Controller
         }
 
         $employees = $query->latest()->get()->map(function($user) {
-            $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
+            $staffCount = User::where('employer_id', $user->id)->where('type', User::TYPE_STAFF)->count();
             $lastPayroll = $user->payrolls()->latest()->first();
 
             return [
@@ -72,6 +72,8 @@ class EmployeeController extends Controller
         $reviews = $query->latest()->get()->map(function($user) {
             $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
 
+            $user->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
+
             return [
                 'id' => $user->id,
                 'company' => [
@@ -79,6 +81,11 @@ class EmployeeController extends Controller
                     'industry' => $user->industry ?? '—',
                 ],
                 'cac_no' => $user->rc_number ?? '—',
+                'documents' => [
+                    'cac_certificate' => $user->cac_certificate_url,
+                    'director_id' => $user->director_id_url,
+                    'utility_bill' => $user->utility_bill_url,
+                ],
                 'submitted' => $user->created_at->format('d M Y'),
                 'staff' => $staffCount,
                 'status' => $user->is_approved ? 'Approved' : 'Pending',
@@ -93,9 +100,11 @@ class EmployeeController extends Controller
         $admin = $request->user();
 
         // Ensure the employee belongs to this merchant
-        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->employer_id !== $admin->id) {
             return $this->sendError('Employee not found or unauthorized', null, 404);
         }
+
+        $employee->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
 
         return $this->sendResponse($employee, 'Employee details retrieved');
     }
