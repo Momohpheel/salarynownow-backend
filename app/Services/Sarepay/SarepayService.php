@@ -164,19 +164,20 @@ class SarepayService{
             "last_name" => $isModel ? ($data->last_name ?? $data->name) : ($data['last_name'] ?? $data['name'] ?? "User"),
             "other_name" => $isModel ? $data->name : ($data['name'] ?? "Jeff"),
             "dob" => $isModel ? ($data->dob ?? "2000-01-01") : ($data['dob'] ?? "2000-01-01"),
-            "city" => $isModel ? "Lagos" : ($data['city'] ?? "Lagos"),
-            "state" => $isModel ? "Lagos" : ($data['state'] ?? "Lagos"),
-            "gender" => $isModel ? "Male" : ($data['gender'] ?? "Male"),
-            "marital_status" => $isModel ? "SINGLE" : ($data['marital_status'] ?? "SINGLE"),
-            "address" => $isModel ? ($data->company_address ?? "Test Address") : ($data['company_address'] ?? "Test Address"),
-            "email" => $isModel ? $data->email : ($data['email'] ?? null),
-            "business_name" => $isModel ? ($data->company_name ?? "Test Business") : ($data['company_name'] ?? "Test Business"),
+            // "city" => $isModel ? "Lagos" : ($data['city'] ?? "Lagos"),
+            // "state" => $isModel ? "Lagos" : ($data['state'] ?? "Lagos"),
+            // "gender" => $isModel ? "Male" : ($data['gender'] ?? "Male"),
+            // "marital_status" => $isModel ? "SINGLE" : ($data['marital_status'] ?? "SINGLE"),
+            // "address" => $isModel ? ($data->company_address ?? "Test Address") : ($data['company_address'] ?? "Test Address"),
+            //"email" => $isModel ? $data->email : ($data['email'] ?? null),
+            //"business_name" => $isModel ? ($data->company_name ?? "Test Business") : ($data['company_name'] ?? "Test Business"),
             "bvn" => $isModel ? $data->bvn : ($data['bvn'] ?? null),
             "phone_number" => $isModel ? $data->phone_number : ($data['phone_number'] ?? null),
             "business_type" => "Main",
-            "type" => "Corporate",
-            "rc_number" => $isModel ? $data->rc_number : ($data['rc_number'] ?? null),
-            "corporate_account_type" => "COMPANY",
+            //"type" => "Corporate",
+             'type' => "Personal",
+           // "rc_number" => $isModel ? $data->rc_number : ($data['rc_number'] ?? null),
+            //"corporate_account_type" => "COMPANY",
             "currency" => "NGN",
             "channel" => "Globus",
         ];
@@ -187,7 +188,7 @@ class SarepayService{
         $response = $this->apiPost($endpoint, $accountDto);
 
         Log::info([$response]);
-        
+
         $this->checkFalseAccount($response);
         $response = $response->data;
         return (object) [

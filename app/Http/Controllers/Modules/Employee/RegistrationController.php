@@ -70,7 +70,7 @@ class RegistrationController extends Controller
     {
         $user = $request->user();
 
-        if ($user->is_approved || !empty($user->rc_number) || !empty($user->cac_certificate_path)) {
+        if ($user->is_approved) {
             return $this->sendError('Account is already approved.', null, 400);
         }
 

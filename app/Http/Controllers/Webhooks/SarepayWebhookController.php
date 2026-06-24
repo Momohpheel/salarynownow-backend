@@ -40,6 +40,10 @@ class SarepayWebhookController extends Controller
         } else if (strpos($request->event, "collection.virtualaccount.successful") !== false) {
             return $this->virtualAccountWebHook($request);
         }
+        else if (strpos($request->event, "generate.virtualaccount.failed") !== false) {
+            Log::error('Sarepay Webhook Failed:', $payload);
+            return response()->json(['message' => 'Webhook event received'], 200);
+        }
         // else if (strpos($request->event, "transfer") !== false) {
         //     return $this->transferWebHook($request);
         // }
