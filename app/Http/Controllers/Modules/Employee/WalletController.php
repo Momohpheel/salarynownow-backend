@@ -10,8 +10,8 @@ class WalletController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $employer = $user->type === \App\Models\User::TYPE_EMPLOYEE && $user->parent_id 
-            ? $user->parent 
+        $employer = $user->type === \App\Models\User::TYPE_EMPLOYEE && $user->employer_id
+            ? $user->employer()
             : $user;
 
         $wallet = $employer->wallet;
