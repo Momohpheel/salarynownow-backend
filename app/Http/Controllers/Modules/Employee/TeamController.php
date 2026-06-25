@@ -16,7 +16,7 @@ class TeamController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
         
-        $team = User::where('parent_id', $employerId)
+        $team = User::where('employer_id', $employerId)
             ->where('type', User::TYPE_EMPLOYEE)
             ->get();
 
