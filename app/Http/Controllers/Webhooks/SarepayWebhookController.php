@@ -22,7 +22,7 @@ class SarepayWebhookController extends Controller
                 'account_reference' => $data['reference'],
                 'account_number' => $data['account_number'],
                 'account_name' => $data['account_name'],
-                'status' => $data['status'],
+                //'status' => $data['status'],
                 // 'bank_name' => $data['bank'] ?? 'Unknown Bank',
             ];
             // Find and update wallet by account reference
@@ -62,7 +62,7 @@ class SarepayWebhookController extends Controller
         // }
 
         $data = $payload['data'] ?? [];
-        $accountReference = $data['customer_reference'] ?? null;
+        $accountReference = $data['reference'] ?? null;
         $transactionReference = $data['transaction_reference'] ?? null;
         $amount = $data['amount'] ?? 0;
 
