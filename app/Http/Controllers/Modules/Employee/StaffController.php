@@ -157,7 +157,7 @@ class StaffController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        if ($staff->employer_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
+        if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
