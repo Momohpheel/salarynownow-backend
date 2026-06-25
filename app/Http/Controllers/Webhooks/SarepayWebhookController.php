@@ -69,6 +69,8 @@ class SarepayWebhookController extends Controller
         if (!$accountReference || !$transactionReference || $amount <= 0) {
             return response()->json(['message' => 'Invalid data'], 400);
         }
+        //6a3d6feb75c37314431782411243
+        //account_reference
 
         // 2. Find the wallet by account_reference
         $wallet = Wallet::where('account_reference', $accountReference)->first();
@@ -79,10 +81,10 @@ class SarepayWebhookController extends Controller
         }
 
         // 3. Check if this transaction has already been processed
-        $alreadyProcessed = WalletLog::where('metadata->transaction_reference', $transactionReference)->exists();
-        if ($alreadyProcessed) {
-            return response()->json(['message' => 'Transaction already processed'], 200);
-        }
+        // $alreadyProcessed = WalletLog::where('metadata->transaction_reference', $transactionReference)->exists();
+        // if ($alreadyProcessed) {
+        //     return response()->json(['message' => 'Transaction already processed'], 200);
+        // }
 
              Log::info('Inflow wallet  :', $wallet);
 
