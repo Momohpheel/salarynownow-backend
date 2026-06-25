@@ -158,11 +158,15 @@ class SarepayService{
             ];
         }
 
+        $fullName = trim((string) ($isModel ? ($data->name ?? '') : ($data['name'] ?? '')));
+        $nameParts = preg_split('/\s+/', $fullName, 3, PREG_SPLIT_NO_EMPTY) ?: [];
+        [$splitFirstName, $splitLastName, $splitOtherName] = array_pad($nameParts, 3, null);
+
         $accountDto = [
             "customer_reference" => $customerReference,
-            "first_name" => $isModel ? ($data->first_name ?? $data->name) : ($data['first_name'] ?? $data['name'] ?? "Test"),
-            "last_name" => $isModel ? ($data->last_name ?? $data->name) : ($data['last_name'] ?? $data['name'] ?? "User"),
-            "other_name" => $isModel ? $data->name : ($data['name'] ?? "Jeff"),
+            "first_name" => $isModel ? ($data->first_name ?? $splitFirstName ) : ($data['first_name'] ?? $splitFirstName),
+            "last_name" => $isModel ? ($data->last_name ?? $splitLastName) : ($data['last_name'] ?? $splitLastName),
+            "other_name" => $isModel ? ($data->other_name ?? $splitOtherName) : ($data['other_name'] ?? $splitOtherName),
             "dob" => $isModel ? ($data->dob ?? "2000-01-01") : ($data['dob'] ?? "2000-01-01"),
             // "city" => $isModel ? "Lagos" : ($data['city'] ?? "Lagos"),
             // "state" => $isModel ? "Lagos" : ($data['state'] ?? "Lagos"),
@@ -175,7 +179,7 @@ class SarepayService{
             "phone_number" => $isModel ? $data->phone_number : ($data['phone_number'] ?? null),
             "business_type" => "Main",
             //"type" => "Corporate",
-             'type' => "Personal",
+            'type' => "Personal",
            // "rc_number" => $isModel ? $data->rc_number : ($data['rc_number'] ?? null),
             //"corporate_account_type" => "COMPANY",
             "currency" => "NGN",
