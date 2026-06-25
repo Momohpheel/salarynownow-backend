@@ -79,7 +79,7 @@ class StaffController extends Controller
     public function index(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
-        $query = User::where('employer_id', $employerId)->staff();
+        $query = User::where('parent_id', $employerId)->staff();
 
         // Search by name, email, or phone
         if ($request->has('search')) {
