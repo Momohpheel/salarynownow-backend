@@ -62,7 +62,7 @@ class SarepayWebhookController extends Controller
         // }
 
         $data = $payload['data'] ?? [];
-        $accountReference = $data['reference'] ?? null;
+        $accountReference = $data['account_reference'] ?? null;
         $transactionReference = $data['transaction_reference'] ?? null;
         $amount = $data['amount'] ?? 0;
 
