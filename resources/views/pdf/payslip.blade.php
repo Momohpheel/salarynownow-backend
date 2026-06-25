@@ -50,7 +50,7 @@
 <body>
     <div class="header">
         <div class="logo">SalaryNowNow</div>
-        <div class="company-info">{{ $payslip->user->employer->company_name ?? 'Company' }}</div>
+        <div class="company-info">{{ $payslip->user->parent->company_name ?? 'Company' }}</div>
     </div>
 
     <div class="employee-info">
