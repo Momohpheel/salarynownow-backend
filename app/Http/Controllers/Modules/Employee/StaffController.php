@@ -105,6 +105,8 @@ class StaffController extends Controller
                 'email' => $s->email,
                 'phone' => $s->phone_number ?? '-',
                 'bank' => $s->bank_name ?? '-',
+                'state' => $s->state_of_origin ?? '-',
+                'date_of_birth' => $s->dob ?? '-',
                 'salary' => '₦' . number_format($s->salary, 2),
                 'status' => $s->invitation_status,
                 'is_active' => $s->is_active,
