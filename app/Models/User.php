@@ -45,6 +45,7 @@ use Laravel\Sanctum\HasApiTokens;
     'state_of_origin',
     'bank_name',
     'account_number',
+    'employer_id',
     'account_name',
     'salary',
     'pfa_name',
