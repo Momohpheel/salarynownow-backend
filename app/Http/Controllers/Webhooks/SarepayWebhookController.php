@@ -86,7 +86,7 @@ class SarepayWebhookController extends Controller
         //     return response()->json(['message' => 'Transaction already processed'], 200);
         // }
 
-             Log::info('Inflow wallet  :', $wallet);
+             Log::info('Inflow wallet  :', [$wallet]);
 
         try{
             // 4. Update wallet balance and log the transaction
