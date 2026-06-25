@@ -54,7 +54,7 @@ class SarepayWebhookController extends Controller
     {
         $payload = $request->all();
         
-        //Log::info('Sarepay Webhook Received:', $payload);
+        Log::info('Inflow Sarepay Webhook Received:', $payload);
 
         // 1. Validate the event type
         // if (($payload['event'] ?? '') !== 'collection.virtualaccount.successful') {
@@ -84,35 +84,54 @@ class SarepayWebhookController extends Controller
             return response()->json(['message' => 'Transaction already processed'], 200);
         }
 
-        // 4. Update wallet balance and log the transaction
-        return DB::transaction(function () use ($wallet, $amount, $transactionReference, $data) {
-            $balanceBefore = $wallet->balance;
-            
-            // Credit the wallet
-            $wallet->increment('balance', $amount);
-            
-            // Log the transaction
-            $walletLog = $wallet->logs()->create([
-                'amount' => $amount,
-                'type' => 'credit',
-                'description' => "Wallet Topup via Virtual Account",
-                'balance_before' => $balanceBefore,
-                'balance_after' => $wallet->fresh()->balance,
-                'metadata' => [
-                    'transaction_reference' => $transactionReference,
-                    'provider' => 'Sarepay',
-                    'sender_name' => $data['sender']['originatorName'] ?? 'Unknown',
-                    'sender_bank' => $data['sender']['originatorBank'] ?? 'Unknown',
-                ]
-            ]);
+             Log::info('Inflow wallet  :', $wallet);
 
-            // Send email notification
-            $user = $wallet->user;
-            if ($user) {
-                Mail::to($user->email)->send(new WalletInflow($walletLog, $user));
-            }
+        try{
+            // 4. Update wallet balance and log the transaction
+            $result = DB::transaction(function () use ($wallet, $amount, $transactionReference, $data) {
+                $balanceBefore = $wallet->balance;
+                
+                // Credit the wallet
+                $wallet->increment('balance', $amount);
+                
+                // Log the transaction
+                $walletLog = $wallet->logs()->create([
+                    'amount' => $amount,
+                    'type' => 'credit',
+                    'description' => "Wallet Topup via Virtual Account",
+                    'balance_before' => $balanceBefore,
+                    'balance_after' => $wallet->fresh()->balance,
+                    'metadata' => [
+                        'transaction_reference' => $transactionReference,
+                        'provider' => 'Sarepay',
+                        'sender_name' => $data['sender']['originatorName'] ?? 'Unknown',
+                        'sender_bank' => $data['sender']['originatorBank'] ?? 'Unknown',
+                    ]
+                ]);
 
-            return response()->json(['status' => true, 'message' => 'Wallet credited successfully'], 200);
-        });
-    }
+                // Send email notification
+                $user = $wallet->user;
+                return [
+                    'walletLog' => $walletLog,
+                    'user' => $user
+                ];
+            });
+
+            if ($result['user']) {
+                Mail::to($result['user']->email)
+                    ->send(new WalletInflow(
+                        $result['walletLog'],
+                        $result['user']
+                    ));
+                }
+        }catch(\Exception $e){
+             Log::error('Wallet credit failed', [
+        'wallet_id' => $wallet->id,
+        'amount' => $amount,
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString(),
+    ]);
+
+}
+}
 }
