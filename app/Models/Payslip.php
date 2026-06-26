@@ -9,6 +9,9 @@ class Payslip extends Model
     const STATUS_PROCESSING = 'processing';
     const STATUS_DISBURSED = 'disbursed';
     const STATUS_FAILED = 'failed';
+    const STATUS_PENDING = 'pending';
+
+
 
     protected $fillable = [
         'user_id',

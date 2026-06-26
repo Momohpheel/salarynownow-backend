@@ -47,6 +47,8 @@ class ProcessPayroll extends Command
             $this->info("Processing payroll ID: {$payroll->id} for employer: {$payroll->user->name}");
             
             $payroll->update(['status' => Payroll::STATUS_PROCESSING]);
+            $employerWallet = $payroll->user->wallet;
+            $availableBalance = (float) ($employerWallet?->balance ?? 0);
 
             $payslips = $payroll->payslips()
                 ->where('status', Payslip::STATUS_PROCESSING)
@@ -59,6 +61,14 @@ class ProcessPayroll extends Command
                 $this->info("Initiating transfer of ₦" . number_format($payslip->net_salary, 2) . " to {$staff->name} ({$staff->account_number})");
 
                 try {
+                    if (! $employerWallet) {
+                        throw new \Exception("Employer wallet not found.");
+                    }
+
+                    if ($availableBalance < (float) $payslip->net_salary) {
+                        throw new \Exception("Insufficient employer wallet balance for this transaction.");
+                    }
+
                     $response = $this->sarepayService->transfer(
                         $reference,
                         $staff->account_number,
@@ -66,6 +76,8 @@ class ProcessPayroll extends Command
                         $payslip->net_salary,
                         "Salary for {$payroll->description}"
                     );
+
+                    $availableBalance -= (float) $payslip->net_salary;
 
                     // Create transaction record
                     Transaction::create([

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\PayslipMail;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -10,6 +11,7 @@ use App\Models\Payroll;
 use App\Models\Payslip;
 use App\Models\Transaction;
 use App\Services\Sarepay\SarepayService;
+use Illuminate\Support\Facades\Mail;
 
 #[Signature('app:requery-transactions')]
 #[Description('Requery pending transactions to update their status')]
@@ -51,6 +53,11 @@ class RequeryTransactions extends Command
                         
                         // Update related payslip
                         $transaction->payslip->update(['status' => Payslip::STATUS_DISBURSED]);
+                        $transaction->payslip->load('user');
+
+                        if ($transaction->payslip->user?->email) {
+                            Mail::to($transaction->payslip->user->email)->send(new PayslipMail($transaction->payslip));
+                        }
                         
                         $this->info("Transaction {$transaction->reference} marked as SUCCESS.");
                     } elseif ($response->status === 'failed') {

@@ -3,14 +3,10 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
-use App\Mail\PayslipMail;
-use App\Mail\PayrollCompleted;
 use App\Models\User;
 use App\Models\Payslip;
-use App\Models\WalletLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 
 class PayrollController extends Controller
 {
@@ -161,7 +157,7 @@ class PayrollController extends Controller
                     'pension' => $pensionEE,
                     'other_deductions' => $deductions,
                     'net_salary' => $netPay,
-                    'status' => Payslip::STATUS_DISBURSED,
+                    'status' => Payslip::STATUS_PENDING,
                 ]);
 
                 $payslips[] = $payslip;
@@ -183,24 +179,18 @@ class PayrollController extends Controller
             ]);
 
             // Deduct from wallet
-            $balanceBefore = $wallet->balance;
-            $wallet->decrement('balance', $totalNetToPay);
+            // $balanceBefore = $wallet->balance;
+            // $wallet->decrement('balance', $totalNetToPay);
 
             // Log wallet transaction
-            $wallet->logs()->create([
-                'amount' => $totalNetToPay,
-                'type' => 'debit',
-                'description' => "Payroll Run: {$payroll->description}",
-                'balance_before' => $balanceBefore,
-                'balance_after' => $wallet->balance,
-                'metadata' => ['payroll_id' => $payroll->id]
-            ]);
-
-            // Send payslip emails
-            foreach ($payslips as $payslip) {
-                $payslip->load('user');
-                Mail::to($payslip->user->email)->send(new PayslipMail($payslip));
-            }
+            // $wallet->logs()->create([
+            //     'amount' => $totalNetToPay,
+            //     'type' => 'debit',
+            //     'description' => "Payroll Run: {$payroll->description}",
+            //     'balance_before' => $balanceBefore,
+            //     'balance_after' => $wallet->balance,
+            //     'metadata' => ['payroll_id' => $payroll->id]
+            // ]);
 
             // // Send payroll completed email to employer
             // $payroll->load('user');
