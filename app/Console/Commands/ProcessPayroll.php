@@ -56,7 +56,7 @@ class ProcessPayroll extends Command
             $hasFailures = false;
 
             $payslips = Payslip::where('payroll_id', $payroll->id)
-               // ->where('status', Payslip::STATUS_PROCESSING)
+               // ->where('status', Payslip::STATUS_PENDING)
                 ->get();
 
             foreach ($payslips as $payslip) {
