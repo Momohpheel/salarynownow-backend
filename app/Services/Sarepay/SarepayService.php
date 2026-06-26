@@ -266,14 +266,14 @@ class SarepayService{
 
     public function transfer ($reference, $account_number, $bank_code, $amount, $narration=null)
     {
-        if (config('app.env') === 'testing') {
-            return (object) [
-                'success' => true,
-                'status' => 'success',
-                'message' => 'Mock transfer successful',
-                'data' => ['reference' => $reference]
-            ];
-        }
+        // if (config('app.env') === 'testing') {
+        //     return (object) [
+        //         'success' => true,
+        //         'status' => 'success',
+        //         'message' => 'Mock transfer successful',
+        //         'data' => ['reference' => $reference]
+        //     ];
+        // }
 
         $validate = $this->validateAccount($account_number,$bank_code);
 

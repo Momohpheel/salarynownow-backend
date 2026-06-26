@@ -31,12 +31,15 @@ class ProcessPayroll extends Command
     {
         $this->info('Checking for payrolls to disburse...');
 
-        $payrolls = Payroll::where('status', Payroll::STATUS_PENDING)
+        $payrolls = Payroll::whereIn('status', [
+                Payroll::STATUS_PENDING,
+                Payroll::STATUS_PROCESSING,
+            ])
             ->whereDate('processed_at', '<=', now())
             ->get();
 
         if ($payrolls->isEmpty()) {
-            $this->info('No pending payrolls for today.');
+            $this->info('No pending or processing payrolls for today.');
             return;
         }
 
