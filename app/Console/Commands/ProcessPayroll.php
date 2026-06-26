@@ -6,10 +6,13 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
+use App\Mail\PayslipMail;
+use App\Mail\PayrollCompleted;
 use App\Models\Payroll;
 use App\Models\Payslip;
 use App\Models\Transaction;
 use App\Services\Sarepay\SarepayService;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 #[Signature('app:process-payroll')]
@@ -50,12 +53,11 @@ class ProcessPayroll extends Command
             $payroll->update(['status' => Payroll::STATUS_PROCESSING]);
             $employerWallet = $payroll->user->wallet;
             $availableBalance = (float) ($employerWallet?->balance ?? 0);
+            $hasFailures = false;
 
             $payslips = Payslip::where('payroll_id', $payroll->id)
-                ->get();
-            //$payroll->payslips()
                // ->where('status', Payslip::STATUS_PROCESSING)
-               // ->get();
+                ->get();
 
             foreach ($payslips as $payslip) {
                 $staff = $payslip->user;
@@ -89,8 +91,6 @@ class ProcessPayroll extends Command
                         "Salary for {$payroll->description}"
                     );
 
-                    $availableBalance -= (float) $payslip->net_salary;
-
                     // Create transaction record
                     Transaction::create([
                         'user_id' => $staff->id,
@@ -98,11 +98,37 @@ class ProcessPayroll extends Command
                         'payslip_id' => $payslip->id,
                         'reference' => $reference,
                         'amount' => $payslip->net_salary,
-                        'status' => Transaction::STATUS_PROCESSING,
+                        'status' => Transaction::STATUS_SUCCESS,
                         'metadata' => (array) $response,
                     ]);
 
+                    $balanceBefore = (float) $employerWallet->balance;
+                    $employerWallet->decrement('balance', $payslip->net_salary);
+                    $employerWallet->refresh();
+
+                    $employerWallet->logs()->create([
+                        'amount' => $payslip->net_salary,
+                        'type' => 'debit',
+                        'description' => "Salary payment for {$staff->name} ({$payroll->description})",
+                        'balance_before' => $balanceBefore,
+                        'balance_after' => (float) $employerWallet->balance,
+                        'metadata' => [
+                            'payroll_id' => $payroll->id,
+                            'payslip_id' => $payslip->id,
+                            'transaction_reference' => $reference,
+                        ],
+                    ]);
+
+                    $availableBalance = (float) $employerWallet->balance;
+                    $payslip->update(['status' => Payslip::STATUS_DISBURSED]);
+                    $payslip->load('user');
+
+                    if ($payslip->user?->email) {
+                        Mail::to($payslip->user->email)->send(new PayslipMail($payslip));
+                    }
+
                 } catch (\Exception $e) {
+                    $hasFailures = true;
                     $this->error("Failed to initiate transfer for {$staff->name}: " . $e->getMessage());
                     
                     Transaction::create([
@@ -115,6 +141,15 @@ class ProcessPayroll extends Command
                         'response_message' => $e->getMessage(),
                     ]);
                 }
+            }
+
+            $payroll->update([
+                'status' => $hasFailures ? Payroll::STATUS_FAILED : Payroll::STATUS_COMPLETED,
+            ]);
+
+            if (! $hasFailures && $payroll->user?->email) {
+                $payroll->load('user');
+                Mail::to($payroll->user->email)->send(new PayrollCompleted($payroll));
             }
 
             $this->info("Payroll ID: {$payroll->id} processing complete.");
