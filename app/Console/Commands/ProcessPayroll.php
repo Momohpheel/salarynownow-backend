@@ -51,9 +51,11 @@ class ProcessPayroll extends Command
             $employerWallet = $payroll->user->wallet;
             $availableBalance = (float) ($employerWallet?->balance ?? 0);
 
-            $payslips = $payroll->payslips()
-                ->where('status', Payslip::STATUS_PROCESSING)
+            $payslips = Payslip::where('payroll_id', $payroll->id)
                 ->get();
+            //$payroll->payslips()
+               // ->where('status', Payslip::STATUS_PROCESSING)
+               // ->get();
 
             foreach ($payslips as $payslip) {
                 $staff = $payslip->user;
