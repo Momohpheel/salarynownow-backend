@@ -65,16 +65,19 @@ class ProcessPayroll extends Command
 
                 try {
                     if (! $employerWallet) {
+                        $this->error("Employer wallet not found for {$payroll->user->name}");
                         throw new \Exception("Employer wallet not found.");
                     }
 
                     if ($availableBalance < (float) $payslip->net_salary) {
+                        $this->error("Insufficient employer wallet balance for {$payroll->user->name}");
                         throw new \Exception("Insufficient employer wallet balance for this transaction.");
                     }
 
                     $bankCode = $this->resolveBankCode($staff->bank_name, $bankCodeLookup);
 
                     if (! $bankCode) {
+                        $this->error("Bank code not found for {$staff->bank_name}");
                         throw new \Exception("Bank code not found for {$staff->bank_name}.");
                     }
 
