@@ -30,6 +30,7 @@ class ProcessPayroll extends Command
     public function handle()
     {
         $this->info('Checking for payrolls to disburse...');
+        $bankCodeLookup = $this->buildBankCodeLookup();
 
         $payrolls = Payroll::whereIn('status', [
                 Payroll::STATUS_PENDING,
@@ -69,10 +70,16 @@ class ProcessPayroll extends Command
                         throw new \Exception("Insufficient employer wallet balance for this transaction.");
                     }
 
+                    $bankCode = $this->resolveBankCode($staff->bank_name, $bankCodeLookup);
+
+                    if (! $bankCode) {
+                        throw new \Exception("Bank code not found for {$staff->bank_name}.");
+                    }
+
                     $response = $this->sarepayService->transfer(
                         $reference,
                         $staff->account_number,
-                        $staff->bank_code ?? '000', // Default if missing, but should be there
+                        $bankCode,
                         $payslip->net_salary,
                         "Salary for {$payroll->description}"
                     );
@@ -107,5 +114,46 @@ class ProcessPayroll extends Command
 
             $this->info("Payroll ID: {$payroll->id} processing complete.");
         }
+    }
+
+    private function buildBankCodeLookup(): array
+    {
+        $lookup = [];
+
+        try {
+            $banks = $this->sarepayService->getBanks();
+
+            foreach ($banks as $bank) {
+                $name = is_array($bank)
+                    ? ($bank['name'] ?? $bank['bank_name'] ?? null)
+                    : ($bank->name ?? $bank->bank_name ?? null);
+
+                $code = is_array($bank)
+                    ? ($bank['code'] ?? $bank['bank_code'] ?? null)
+                    : ($bank->code ?? $bank->bank_code ?? null);
+
+                if ($name && $code) {
+                    $lookup[$this->normalizeBankName($name)] = $code;
+                }
+            }
+        } catch (\Exception $e) {
+            $this->error('Failed to fetch bank list: ' . $e->getMessage());
+        }
+
+        return $lookup;
+    }
+
+    private function resolveBankCode(?string $bankName, array $bankCodeLookup): ?string
+    {
+        if (! $bankName) {
+            return null;
+        }
+
+        return $bankCodeLookup[$this->normalizeBankName($bankName)] ?? null;
+    }
+
+    private function normalizeBankName(string $bankName): string
+    {
+        return strtolower(trim(preg_replace('/\s+/', ' ', $bankName)));
     }
 }
