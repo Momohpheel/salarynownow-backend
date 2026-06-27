@@ -124,7 +124,6 @@ class EmployeeController extends Controller
 
         // Call Sarepay to create virtual account
         $sarepayResponse = $this->sarepayService->createAccount($employee);
-
        
 
         $accountData = $sarepayResponse;

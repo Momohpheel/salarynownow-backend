@@ -105,7 +105,7 @@ class RegistrationController extends Controller
                 'cac_certificate_path' => $cacPath,
                 'director_id_path' => $directorIdPath,
                 'utility_bill_path' => $utilityBillPath,
-                'is_approved' => true,
+             //   'is_approved' => true,
             ]);
 
             // Call Sarepay to create virtual account
