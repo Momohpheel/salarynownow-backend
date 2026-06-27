@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
-use App\Models\Payroll;
 use App\Models\SalaryAdvance;
 use App\Models\User;
 use Illuminate\Http\Request;
