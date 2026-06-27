@@ -25,9 +25,7 @@ class DashboardController extends Controller
             ->where('created_at', '>=', now()->subDays(30))
             ->count();
 
-        $lastPayroll = $employer->payrolls()
-            ->orderBy('processed_at', 'desc')
-            ->first();
+        $totalPayrollAmount = $employer->payrolls()->sum('amount');
         
         $activeAdvances = SalaryAdvance::where('user_id', $employerId)
             ->where('status', 'approved')
@@ -114,9 +112,9 @@ class DashboardController extends Controller
             ],
             'stats' => [
                 'total_payroll' => [
-                    'value' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 0) : '₦0',
+                    'value' => '₦' . number_format($totalPayrollAmount, 0),
                     'change' => '↗ 4.2%', 
-                    'label' => 'last run',
+                    'label' => 'all payrolls',
                 ],
                 'staff_count' => [
                     'value' => $totalStaff,
