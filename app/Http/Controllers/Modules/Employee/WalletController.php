@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class WalletController extends Controller
@@ -14,7 +15,11 @@ class WalletController extends Controller
             ? $user->employer()
             : $user;
 
-        $wallet = $employer->wallet;
+        if ($employer->employer_id){
+            $employer = User::find($employer->employer_id);
+        }
+
+        $wallet = $employer->employer;
         if (!$wallet) {
             return $this->sendError('Wallet not found for this user.', null, 404);
         }

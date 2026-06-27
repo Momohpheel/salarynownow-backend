@@ -109,19 +109,19 @@ class RegistrationController extends Controller
             ]);
 
             // Call Sarepay to create virtual account
-            $accountData = $this->sarepayService->createAccount($user);
+            // $accountData = $this->sarepayService->createAccount($user);
 
-            // Create wallet
-            Wallet::firstOrCreate([
-                'user_id' => $user->id,
-            ], [
-                'balance' => 0.00,
-                'currency' => 'NGN',
-                'account_number' => $accountData->account_number,
-                'account_name' => $accountData->account_name,
-                'account_reference' => $accountData->account_reference,
-                'bank_name' => $accountData->bank_name,
-            ]);
+            // // Create wallet
+            // Wallet::firstOrCreate([
+            //     'user_id' => $user->id,
+            // ], [
+            //     'balance' => 0.00,
+            //     'currency' => 'NGN',
+            //     'account_number' => $accountData->account_number,
+            //     'account_name' => $accountData->account_name,
+            //     'account_reference' => $accountData->account_reference,
+            //     'bank_name' => $accountData->bank_name,
+            // ]);
         });
 
         Mail::to($user->email)->send(new ProfileCompleted($user));
