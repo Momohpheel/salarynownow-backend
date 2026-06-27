@@ -15,11 +15,11 @@ class WalletController extends Controller
             ? $user->employer()
             : $user;
 
-        if ($employer->employer_id){
-            $employer = User::find($employer->employer_id);
+        if ($user->employer_id){
+            $employer = User::find($user->employer_id);
         }
 
-        $wallet = $employer->employer;
+        $wallet = $employer->wallet;
         if (!$wallet) {
             return $this->sendError('Wallet not found for this user.', null, 404);
         }
