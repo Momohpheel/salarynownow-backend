@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rules;
 
 class StaffController extends Controller
 {
@@ -208,25 +207,79 @@ class StaffController extends Controller
         $file = $request->file('file');
         $handle = fopen($file->getPathname(), 'r');
         
-        // Skip header
         $header = fgetcsv($handle);
+        if ($header === false) {
+            fclose($handle);
+            return $this->sendError('The uploaded CSV file is empty.', null, 422);
+        }
+
+        $normalizedHeader = array_map(function ($column) {
+            return strtolower(trim((string) $column));
+        }, $header);
+
+        $requiredColumns = [
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'date_of_birth',
+            'state_of_origin',
+            'department',
+            'role',
+            'start_date',
+            'employment_type',
+            'bank_name',
+            'account_number',
+            'account_name',
+            'salary',
+        ];
+
+        $missingColumns = array_diff($requiredColumns, $normalizedHeader);
+        if (! empty($missingColumns)) {
+            fclose($handle);
+            return $this->sendError(
+                'CSV header is invalid.',
+                ['missing_columns' => array_values($missingColumns)],
+                422
+            );
+        }
+
+        $columnIndexes = array_flip($normalizedHeader);
         
         $count = 0;
         while (($data = fgetcsv($handle)) !== false) {
-            // Simple mapping: first_name, last_name, email, phone, salary, job_title, department
-            if (count($data) < 3) continue;
+            if (count(array_filter($data, fn ($value) => trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+
+            $firstName = trim((string) ($data[$columnIndexes['first_name']] ?? ''));
+            $lastName = trim((string) ($data[$columnIndexes['last_name']] ?? ''));
+            $email = strtolower(trim((string) ($data[$columnIndexes['email']] ?? '')));
+
+            if ($firstName === '' || $lastName === '' || $email === '') {
+                continue;
+            }
+
+            if (User::where('email', $email)->exists()) {
+                continue;
+            }
 
             User::create([
-                'name' => $data[0] . ' ' . $data[1],
-                'first_name' => $data[0],
-                'last_name' => $data[1],
-                'email' => $data[2],
-                'phone_number' => $data[3] ?? null,
-                'salary' => $data[4] ?? 0,
-                'job_title' => $data[5] ?? 'Staff',
-                'department' => $data[6] ?? 'General',
-                'dob' => $data[7] ?? null,
-                'state_of_origin' => $data[8] ?? null,
+                'name' => $firstName . ' ' . $lastName,
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'email' => $email,
+                'phone_number' => trim((string) ($data[$columnIndexes['phone']] ?? '')) ?: null,
+                'dob' => trim((string) ($data[$columnIndexes['date_of_birth']] ?? '')) ?: null,
+                'state_of_origin' => trim((string) ($data[$columnIndexes['state_of_origin']] ?? '')) ?: null,
+                'department' => trim((string) ($data[$columnIndexes['department']] ?? '')) ?: 'General',
+                'job_title' => trim((string) ($data[$columnIndexes['role']] ?? '')) ?: 'Staff',
+                'role' => trim((string) ($data[$columnIndexes['role']] ?? '')) ?: null,
+                'start_date' => trim((string) ($data[$columnIndexes['start_date']] ?? '')) ?: null,
+                'bank_name' => trim((string) ($data[$columnIndexes['bank_name']] ?? '')) ?: null,
+                'account_number' => trim((string) ($data[$columnIndexes['account_number']] ?? '')) ?: null,
+                'account_name' => trim((string) ($data[$columnIndexes['account_name']] ?? '')) ?: null,
+                'salary' => is_numeric($data[$columnIndexes['salary']] ?? null) ? $data[$columnIndexes['salary']] : 0,
                 'type' => User::TYPE_STAFF,
                 'parent_id' => $employerId,
                 'password' => Hash::make(Str::random(12)),
