@@ -184,7 +184,7 @@ class OperationsController extends Controller
                 'employers' => User::where('type', User::TYPE_EMPLOYEE)->where('parent_id', $admin->id)->count(),
                 'staff' => User::where('type', User::TYPE_STAFF)->whereIn('parent_id', $employerIds)->count(),
                 'partners' => User::where('type', User::TYPE_PARTNER)->count(),
-                'admins' => User::where('type', User::TYPE_ADMIN)->count(),
+                'admins' => 1,
             ],
             'tabs' => [
                 'employers' => $employers->map(function ($employer) {
