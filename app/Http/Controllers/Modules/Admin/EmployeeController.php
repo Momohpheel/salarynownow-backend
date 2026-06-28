@@ -35,7 +35,7 @@ class EmployeeController extends Controller
         }
 
         $employees = $query->latest()->get()->map(function($user) {
-            $staffCount = User::where('employer_id', $user->id)->where('type', User::TYPE_STAFF)->count();
+            $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
             $lastPayroll = $user->payrolls()->latest()->first();
 
             return [
