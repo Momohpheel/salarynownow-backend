@@ -12,6 +12,8 @@ use App\Http\Controllers\Modules\Employee\ForgotPasswordController as EmployeeFo
 use App\Http\Controllers\Modules\Admin\LoginController as AdminLoginController;
 use App\Http\Controllers\Modules\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Modules\Admin\EmployeeController as AdminEmployeeController;
+use App\Http\Controllers\Modules\Admin\OperationsController as AdminOperationsController;
+use App\Http\Controllers\Modules\Admin\StaffController as AdminStaffController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
@@ -80,6 +82,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/kyb-reviews', [AdminEmployeeController::class, 'kybReviews']);
         Route::get('/employees/{employee}', [AdminEmployeeController::class, 'show']);
         Route::post('/employees/{employee}/approve', [AdminEmployeeController::class, 'approve']);
+        Route::get('/advances', [AdminOperationsController::class, 'advances']);
+        Route::get('/audit-log', [AdminOperationsController::class, 'auditLog']);
+        Route::get('/audit-log/export', [AdminOperationsController::class, 'exportAuditLog']);
+        Route::get('/users', [AdminOperationsController::class, 'users']);
+        Route::get('/wallets', [AdminOperationsController::class, 'wallets']);
+        Route::get('/payrolls', [AdminOperationsController::class, 'payrolls']);
+        Route::get('/staff', [AdminStaffController::class, 'index']);
     });
 
     // Staff Protected Routes
