@@ -66,8 +66,8 @@ class StaffController extends Controller
             'salary' => $request->salary,
             'pfa_name' => $request->pfa_name,
             'rsa_pin' => $request->rsa_pin,
-            'pension_employee_rate' => 8.0, //$request->pension_employee_rate,
-            'pension_employer_rate' => 8.0, //$request->pension_employer_rate,
+            'pension_employee_rate' => 0.0, //$request->pension_employee_rate,
+            'pension_employer_rate' => 0.0, //$request->pension_employer_rate,
             'invitation_status' => 'Not invited',
             'is_approved' => true, // Staff added by employees are auto-approved for their own system
         ]);

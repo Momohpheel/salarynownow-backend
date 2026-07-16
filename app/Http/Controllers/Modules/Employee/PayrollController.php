@@ -20,15 +20,15 @@ class PayrollController extends Controller
 
         $totalGross = $staff->sum('salary');
         // Simple net calculation: Gross - Pension (EE 8%)
-        $totalNet = $staff->sum(fn($s) => $s->salary * 0.92);
+        // $totalNet = $staff->sum(fn($s) => $s->salary * 0.92);
 
         $data = [
             'staff_count' => $staff->count(),
             'est_gross' => '₦' . number_format($totalGross, 2),
-            'est_net' => '₦' . number_format($totalNet, 2),
+            'est_net' => '₦' . number_format($totalGross, 2),
             'raw_totals' => [
                 'gross' => $totalGross,
-                'net' => $totalNet,
+                'net' => $totalGross,
             ]
         ];
 

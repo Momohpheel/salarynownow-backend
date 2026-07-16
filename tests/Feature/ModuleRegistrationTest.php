@@ -151,8 +151,8 @@ class ModuleRegistrationTest extends TestCase
                 'salary' => 500000,
                 'pfa_name' => 'Stanbic IBTC',
                 'rsa_pin' => 'PEN123456789',
-                'pension_employee_rate' => 8,
-                'pension_employer_rate' => 10,
+                'pension_employee_rate' => 0,
+                'pension_employer_rate' => 0,
             ]);
 
         $response->assertStatus(201)
