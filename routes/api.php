@@ -8,6 +8,10 @@ use App\Http\Controllers\Modules\Employee\WalletController as EmployeeWalletCont
 use App\Http\Controllers\Modules\Employee\SalaryAdvanceController as EmployeeSalaryAdvanceController;
 use App\Http\Controllers\Modules\Employee\PayrollController as EmployeePayrollController;
 use App\Http\Controllers\Modules\Employee\TeamController as EmployeeTeamController;
+use App\Http\Controllers\Modules\Employee\UserRoleController as EmployeeUserRoleController;
+use App\Http\Controllers\Modules\Employee\RoleController as EmployeeRoleController;
+use App\Http\Controllers\Modules\Employee\VerifyOtpController as EmployeeVerifyOtpController;
+use App\Http\Controllers\Modules\Employee\ResendOtpController as EmployeeResendOtpController;
 use App\Http\Controllers\Modules\Employee\ForgotPasswordController as EmployeeForgotPasswordController;
 use App\Http\Controllers\Modules\Admin\LoginController as AdminLoginController;
 use App\Http\Controllers\Modules\Admin\DashboardController as AdminDashboardController;
@@ -54,6 +58,8 @@ Route::middleware(['auth:sanctum'])->prefix('superadmin')->group(function () {
 // Employee Module
 Route::post('/employee/register', [EmployeeRegistrationController::class, 'register']);
 Route::post('/employee/login', [EmployeeLoginController::class, 'login']);
+Route::post('/employee/verify-otp', [EmployeeVerifyOtpController::class, 'verify']);
+Route::post('/employee/resend-otp', [EmployeeResendOtpController::class, 'resend']);
 Route::post('/employee/forgot-password', [EmployeeForgotPasswordController::class, 'sendResetLink']);
 Route::post('/employee/reset-password', [EmployeeForgotPasswordController::class, 'reset']);
 
@@ -140,5 +146,16 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/staff-payments', [EmployeeReportController::class, 'staffPayments']);
             Route::get('/advances', [EmployeeReportController::class, 'advanceReport']);
         });
+
+        // Role Management
+        Route::apiResource('roles', EmployeeRoleController::class);
+        Route::get('/permissions', [EmployeeRoleController::class, 'permissions']);
+        Route::post('/roles/{role}/permissions', [EmployeeRoleController::class, 'assignPermissions']);
+        Route::put('/roles/{role}/permissions', [EmployeeRoleController::class, 'updatePermissions']);
+
+        // User Role Assignment
+        Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'assignRole']);
+        Route::put('/users/{user}/role', [EmployeeUserRoleController::class, 'updateRole']);
+        Route::get('/users/{user}/role', [EmployeeUserRoleController::class, 'getUserRole']);
     });
 });

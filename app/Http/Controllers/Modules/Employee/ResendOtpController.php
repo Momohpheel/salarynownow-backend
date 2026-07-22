@@ -5,23 +5,21 @@ namespace App\Http\Controllers\Modules\Employee;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
-class LoginController extends Controller
+class ResendOtpController extends Controller
 {
-    public function login(Request $request)
+    public function resend(Request $request)
     {
         $request->validate([
             'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
         ]);
 
         $user = User::employee()->where('email', $request->email)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (! $user) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.failed')],
             ]);
@@ -37,13 +35,6 @@ class LoginController extends Controller
 
         Mail::to($user->email)->send(new OtpMail($otp));
 
-        return $this->sendResponse(null, 'An OTP has been sent to your email.');
-    }
-
-    public function logout(Request $request)
-    {
-        $request->user()->currentAccessToken()->delete();
-
-        return $this->sendResponse(null, 'Logged out successfully');
+        return $this->sendResponse(null, 'A new OTP has been sent to your email.');
     }
 }

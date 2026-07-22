@@ -14,7 +14,8 @@
         "laravel/framework": "^13.8",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
-        "resend/resend-laravel": "*"
+        "resend/resend-laravel": "*",
+        "spatie/laravel-activitylog": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

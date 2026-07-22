@@ -54,7 +54,11 @@ use Laravel\Sanctum\HasApiTokens;
     'pension_employer_rate',
     'invitation_status',
     'is_active',
-    'role',
+    'tax_deduction',
+    'nhf',
+    'net_salary',
+    'role_id',
+
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -68,10 +72,7 @@ class User extends Authenticatable
     const TYPE_STAFF = 'staff';
     const TYPE_PARTNER = 'partner';
 
-    const ROLE_OWNER = 'Owner';
-    const ROLE_FINANCE = 'Finance';
-    const ROLE_HR = 'Hr';
-    const ROLE_VIEWER = 'Viewer';
+
 
     /**
      * Get the attributes that should be cast.
@@ -187,5 +188,15 @@ class User extends Authenticatable
         return $this->type === self::TYPE_EMPLOYEE && $this->employer_id 
             ? $this->parent() 
             : $this;
+    }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    public function hasPermissionTo($permission)
+    {
+        return $this->role->permissions->pluck('name')->contains($permission);
     }
 }
