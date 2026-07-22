@@ -33,7 +33,7 @@ class DashboardController extends Controller
         $totalPension = DB::table('payslips')
             ->join('payrolls', 'payslips.payroll_id', '=', 'payrolls.id')
             ->where('payrolls.user_id', $employerId)
-            ->sum('pension');
+            ->sum(DB::raw('pension_employee + pension_employer'));
         
         // 2. Wallet Data
         $wallet = $employer->wallet;
