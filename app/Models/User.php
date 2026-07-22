@@ -57,7 +57,7 @@ use Laravel\Sanctum\HasApiTokens;
     'tax_deduction',
     'nhf',
     'net_salary',
-    'role_id',
+    'role',
 
 ])]
 #[Hidden(['password', 'remember_token'])]

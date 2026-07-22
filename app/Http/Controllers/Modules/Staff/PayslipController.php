@@ -17,10 +17,14 @@ class PayslipController extends Controller
             return [
                 'id' => $p->id,
                 'period' => $p->period,
-                'gross' => '₦' . number_format($p->gross_salary, 2),
-                'pension' => '₦' . number_format($p->pension, 2),
+                'gross_salary' => '₦' . number_format($p->gross_salary, 2),
+                'pension_employee' => '₦' . number_format($p->pension_employee, 2),
+                'pension_employer' => '₦' . number_format($p->pension_employer, 2),
+                'tax_deduction' => '₦' . number_format($p->tax_deduction, 2),
+                'nhf' => '₦' . number_format($p->nhf, 2),
                 'other_deductions' => '₦' . number_format($p->other_deductions, 2),
-                'net' => '₦' . number_format($p->net_salary, 2),
+                'deduction_type' => $p->deduction_type,
+                'net_salary' => '₦' . number_format($p->net_salary, 2),
             ];
         });
 

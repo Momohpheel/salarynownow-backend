@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Validator;
 
 class StaffController extends Controller
 {
@@ -38,7 +39,7 @@ class StaffController extends Controller
             'salary' => ['required', 'numeric', 'min:0'],
 
             // Pension Details
-            // 'pfa_name' => ['required', 'string', 'max:255'],
+            // 'pf-name' => ['required', 'string', 'max:255'],
             // 'rsa_pin' => ['required', 'string', 'max:50'],
             // 'pension_employee_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             // 'pension_employer_rate' => ['required', 'numeric', 'min:0', 'max:100'],
@@ -231,7 +232,12 @@ class StaffController extends Controller
             'bank_name',
             'account_number',
             'account_name',
-            'salary',
+            'gross_salary',
+            'pension_employee',
+            'pension_employer',
+            'tax_deduction',
+            'nhf',
+            'net_salary',
         ];
 
         $missingColumns = array_diff($requiredColumns, $normalizedHeader);
@@ -246,51 +252,98 @@ class StaffController extends Controller
 
         $columnIndexes = array_flip($normalizedHeader);
         
-        $count = 0;
+        $summary = [
+            'total_records' => 0,
+            'successful_uploads' => 0,
+            'failed_uploads' => 0,
+            'errors' => [],
+        ];
+
+        $rowNumber = 1;
         while (($data = fgetcsv($handle)) !== false) {
+            $rowNumber++;
             if (count(array_filter($data, fn ($value) => trim((string) $value) !== '')) === 0) {
                 continue;
             }
 
-            $firstName = trim((string) ($data[$columnIndexes['first_name']] ?? ''));
-            $lastName = trim((string) ($data[$columnIndexes['last_name']] ?? ''));
-            $email = strtolower(trim((string) ($data[$columnIndexes['email']] ?? '')));
+            $summary['total_records']++;
 
-            if ($firstName === '' || $lastName === '' || $email === '') {
+            $rowData = [];
+            foreach ($columnIndexes as $column => $index) {
+                $rowData[$column] = trim((string) ($data[$index] ?? ''));
+            }
+
+            $errors = $this->validateRow($rowData);
+
+            if (!empty($errors)) {
+                $summary['failed_uploads']++;
+                $summary['errors'][] = [
+                    'row' => $rowNumber,
+                    'errors' => $errors,
+                ];
                 continue;
             }
 
-            if (User::where('email', $email)->exists()) {
+            if (User::where('email', $rowData['email'])->exists()) {
+                $summary['failed_uploads']++;
+                $summary['errors'][] = [
+                    'row' => $rowNumber,
+                    'errors' => ['email' => 'A user with this email already exists.'],
+                ];
                 continue;
             }
 
             User::create([
-                'name' => $firstName . ' ' . $lastName,
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'email' => $email,
-                'phone_number' => trim((string) ($data[$columnIndexes['phone']] ?? '')) ?: null,
-                'dob' => trim((string) ($data[$columnIndexes['date_of_birth']] ?? '')) ?: null,
-                'state_of_origin' => trim((string) ($data[$columnIndexes['state_of_origin']] ?? '')) ?: null,
-                'department' => trim((string) ($data[$columnIndexes['department']] ?? '')) ?: 'General',
-                'job_title' => trim((string) ($data[$columnIndexes['role']] ?? '')) ?: 'Staff',
-                'role' => trim((string) ($data[$columnIndexes['role']] ?? '')) ?: null,
-                'start_date' => trim((string) ($data[$columnIndexes['start_date']] ?? '')) ?: null,
-                'bank_name' => trim((string) ($data[$columnIndexes['bank_name']] ?? '')) ?: null,
-                'account_number' => trim((string) ($data[$columnIndexes['account_number']] ?? '')) ?: null,
-                'account_name' => trim((string) ($data[$columnIndexes['account_name']] ?? '')) ?: null,
-                'salary' => is_numeric($data[$columnIndexes['salary']] ?? null) ? $data[$columnIndexes['salary']] : 0,
+                'name' => $rowData['first_name'] . ' ' . $rowData['last_name'],
+                'first_name' => $rowData['first_name'],
+                'last_name' => $rowData['last_name'],
+                'email' => $rowData['email'],
+                'phone_number' => $rowData['phone'] ?? null,
+                'dob' => $rowData['date_of_birth'] ?? null,
+                'state_of_origin' => $rowData['state_of_origin'] ?? null,
+                'department' => $rowData['department'] ?? 'General',
+                'job_title' => $rowData['role'] ?? 'Staff',
+                'role_id' => null, // Assuming role is not being set from CSV for now
+                'start_date' => $rowData['start_date'] ?? null,
+                'bank_name' => $rowData['bank_name'] ?? null,
+                'account_number' => $rowData['account_number'] ?? null,
+                'account_name' => $rowData['account_name'] ?? null,
+                'salary' => $rowData['gross_salary'] ?? 0,
+                'pension_employee_rate' => $rowData['pension_employee'] ?? 0,
+                'pension_employer_rate' => $rowData['pension_employer'] ?? 0,
+                'tax_deduction' => $rowData['tax_deduction'] ?? 0,
+                'nhf' => $rowData['nhf'] ?? 0,
+                'net_salary' => $rowData['net_salary'] ?? 0,
                 'type' => User::TYPE_STAFF,
                 'parent_id' => $employerId,
                 'password' => Hash::make(Str::random(12)),
                 'is_approved' => true,
                 'invitation_status' => 'Not invited',
             ]);
-            $count++;
+
+            $summary['successful_uploads']++;
         }
         
         fclose($handle);
 
-        return $this->sendResponse(null, "Successfully uploaded {$count} staff members");
+        return $this->sendResponse($summary, "Bulk upload process completed.");
+    }
+
+    private function validateRow(array $data): array
+    {
+        $validator = Validator::make($data, [
+            'gross_salary' => ['required', 'numeric', 'min:0'],
+            'net_salary' => ['required', 'numeric', 'min:0', function ($attribute, $value, $fail) use ($data) {
+                if (isset($data['gross_salary']) && $value > $data['gross_salary']) {
+                    $fail('Net salary cannot be greater than gross salary.');
+                }
+            }],
+            'pension_employee' => ['nullable', 'numeric'],
+            'pension_employer' => ['nullable', 'numeric'],
+            'tax_deduction' => ['nullable', 'numeric', 'min:0'],
+            'nhf' => ['nullable', 'numeric', 'min:0'], // Basic validation for now
+        ]);
+
+        return $validator->fails() ? $validator->errors()->toArray() : [];
     }
 }

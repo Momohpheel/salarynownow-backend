@@ -74,11 +74,26 @@
                 <td>{{ number_format($payslip->gross_salary, 2) }}</td>
             </tr>
             <tr>
-                <td>Pension (Employee Contribution)</td>
-                <td>-{{ number_format($payslip->pension, 2) }}</td>
+                <td colspan="2"><strong>Deductions:</strong></td>
             </tr>
             <tr>
-                <td>Other Deductions</td>
+                <td>Pension (Employee)</td>
+                <td>-{{ number_format($payslip->pension_employee, 2) }}</td>
+            </tr>
+            <tr>
+                <td>Pension (Employer)</td>
+                <td>-{{ number_format($payslip->pension_employer, 2) }}</td>
+            </tr>
+            <tr>
+                <td>Tax (PAYE)</td>
+                <td>-{{ number_format($payslip->tax_deduction, 2) }}</td>
+            </tr>
+            <tr>
+                <td>NHF</td>
+                <td>-{{ number_format($payslip->nhf, 2) }}</td>
+            </tr>
+            <tr>
+                <td>Other Deductions ({{ $payslip->deduction_type }})</td>
                 <td>-{{ number_format($payslip->other_deductions, 2) }}</td>
             </tr>
             <tr class="total">

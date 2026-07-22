@@ -18,15 +18,22 @@ class Payslip extends Model
         'payroll_id',
         'period',
         'gross_salary',
-        'pension',
+        'pension_employee',
+        'pension_employer',
+        'tax_deduction',
+        'nhf',
         'other_deductions',
+        'deduction_type',
         'net_salary',
         'status',
     ];
 
     protected $casts = [
         'gross_salary' => 'decimal:2',
-        'pension' => 'decimal:2',
+        'pension_employee' => 'decimal:2',
+        'pension_employer' => 'decimal:2',
+        'tax_deduction' => 'decimal:2',
+        'nhf' => 'decimal:2',
         'other_deductions' => 'decimal:2',
         'net_salary' => 'decimal:2',
     ];

@@ -46,7 +46,9 @@ class PayrollController extends Controller
         $staffDetails = $staff->map(function($s) {
             $pensionEE = $s->salary * ($s->pension_employee_rate / 100);
             $pensionER = $s->salary * ($s->pension_employer_rate / 100);
-            $netPay = $s->salary - $pensionEE;
+            $tax = $s->tax_deduction ?? 0;
+            $nhf = $s->nhf ?? 0;
+            $netPay = $s->salary - $pensionEE - $tax - $nhf;
 
             return [
                 'id' => $s->id,
@@ -54,6 +56,8 @@ class PayrollController extends Controller
                 'gross' => '₦' . number_format($s->salary, 2),
                 'pension_ee' => '₦' . number_format($pensionEE, 2),
                 'pension_er' => '₦' . number_format($pensionER, 2),
+                'tax' => '₦' . number_format($tax, 2),
+                'nhf' => '₦' . number_format($nhf, 2),
                 'advance_ded' => 'NO',
                 'net_pay' => '₦' . number_format($netPay, 2),
                 'raw_net' => $netPay,
@@ -112,7 +116,8 @@ class PayrollController extends Controller
             'pay_date' => 'required|date',
             'staff_data' => 'required|array', // Array of objects with staff_id and deductions
             'staff_data.*.id' => 'required|exists:users,id',
-            'staff_data.*.deductions' => 'nullable|numeric|min:0',
+            'staff_data.*.deductions' => ['nullable', 'numeric', 'min:0'],
+            'staff_data.*.deduction_type' => ['nullable', 'string', 'in:Loan,Disciplinary Action'],
         ]);
 
         $user = $request->user();
@@ -146,16 +151,23 @@ class PayrollController extends Controller
                 if ($staff->parent_id !== $employer->id) continue;
 
                 $pensionEE = $staff->salary * ($staff->pension_employee_rate / 100);
+                $pensionER = $staff->salary * ($staff->pension_employer_rate / 100);
+                $tax = $staff->tax_deduction ?? 0;
+                $nhf = $staff->nhf ?? 0;
                 $deductions = $item['deductions'] ?? 0;
-                $netPay = $staff->salary - $pensionEE - $deductions;
+                $netPay = $staff->salary - $pensionEE - $tax - $nhf - $deductions;
 
                 $payslip = Payslip::create([
                     'user_id' => $staff->id,
                     'payroll_id' => $payroll->id,
                     'period' => $payroll->period_start->format('M Y'),
                     'gross_salary' => $staff->salary,
-                    'pension' => $pensionEE,
+                    'pension_employee' => $pensionEE,
+                    'pension_employer' => $pensionER,
+                    'tax_deduction' => $tax,
+                    'nhf' => $nhf,
                     'other_deductions' => $deductions,
+                    'deduction_type' => $item['deduction_type'] ?? null,
                     'net_salary' => $netPay,
                     'status' => Payslip::STATUS_PENDING,
                 ]);
@@ -229,7 +241,7 @@ class PayrollController extends Controller
             ->with(['payslips.user'])
             ->findOrFail($id);
         
-        $totalDeductions = $payroll->payslips->sum('other_deductions');
+        $totalDeductions = $payroll->payslips->sum('other_deductions') + $payroll->payslips->sum('pension_employee') + $payroll->payslips->sum('tax_deduction') + $payroll->payslips->sum('nhf');
         $totalGross = $payroll->payslips->sum('gross_salary');
 
         $data = [
@@ -250,7 +262,12 @@ class PayrollController extends Controller
                         'bank' => $p->user->bank_name ?? '-',
                         'account' => $p->user->account_number ?? '-',
                         'gross' => '₦' . number_format($p->gross_salary, 2),
+                        'pension_ee' => '₦' . number_format($p->pension_employee, 2),
+                        'pension_er' => '₦' . number_format($p->pension_employer, 2),
+                        'tax' => '₦' . number_format($p->tax_deduction, 2),
+                        'nhf' => '₦' . number_format($p->nhf, 2),
                         'deductions' => $p->other_deductions > 0 ? '₦' . number_format($p->other_deductions, 2) : 'NO',
+                        'deduction_type' => $p->deduction_type,
                         'advance_ded' => 'NO', // Placeholder for advance deduction logic
                         'net_pay' => '₦' . number_format($p->net_salary, 2),
                         'status' => $p->status,
