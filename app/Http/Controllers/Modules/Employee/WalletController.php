@@ -43,7 +43,7 @@ class WalletController extends Controller
                     'type' => $log->type === 'credit' ? '+ Topup' : '- Withdrawal',
                     'amount' => ($log->type === 'credit' ? '+ ' : '- ') . '₦' . number_format($log->amount, 2),
                     'status' => 'Confirmed', // Simplified status for UI
-                    'reference' => $log->metadata['reference'] ?? '-',
+                    'reference' => $log->metadata['transaction_reference'] ?? '-',
                 ];
             }),
         ];
