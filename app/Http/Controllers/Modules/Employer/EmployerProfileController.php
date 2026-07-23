@@ -30,6 +30,7 @@ class EmployerProfileController extends Controller
         }
 
         $validatedData = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
             'company_name' => ['sometimes', 'string', 'max:255'],
             'rc_number' => ['sometimes', 'string', 'max:255'],
             'industry' => ['sometimes', 'string', 'max:255'],
