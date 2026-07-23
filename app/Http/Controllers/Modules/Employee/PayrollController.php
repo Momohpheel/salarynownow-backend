@@ -15,8 +15,19 @@ class PayrollController extends Controller
      */
     public function configure(Request $request)
     {
+        $request->validate([
+            'staff_ids' => ['nullable', 'array'],
+            'staff_ids.*' => ['exists:users,id'],
+        ]);
+
         $employerId = $request->user()->getEmployerId();
-        $staff = User::where('parent_id', $employerId)->staff()->where('is_active', true)->get();
+        $query = User::where('parent_id', $employerId)->staff()->where('is_active', true);
+
+        if ($request->has('staff_ids')) {
+            $query->whereIn('id', $request->staff_ids);
+        }
+
+        $staff = $query->get();
 
         $totalGross = $staff->sum('salary');
         // Simple net calculation: Gross - Pension (EE 8%)
@@ -117,7 +128,7 @@ class PayrollController extends Controller
             'staff_data' => 'required|array', // Array of objects with staff_id and deductions
             'staff_data.*.id' => 'required|exists:users,id',
             'staff_data.*.deductions' => ['nullable', 'numeric', 'min:0'],
-            'staff_data.*.deduction_type' => ['nullable', 'string', 'in:Loan,Disciplinary Action'],
+            'staff_data.*.deduction_type' => ['nullable', 'string'],
         ]);
 
         $user = $request->user();
