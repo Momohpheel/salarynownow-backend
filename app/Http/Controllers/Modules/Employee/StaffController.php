@@ -27,8 +27,9 @@ class StaffController extends Controller
             'job_title' => ['required', 'string', 'max:255'],
             'department' => ['required', 'string', 'max:255'],
             'start_date' => ['required', 'date'],
-            'dob' => ['nullable', 'date'],
+            'date_of_birth' => ['nullable', 'date'],
             'state_of_origin' => ['nullable', 'string', 'max:255'],
+            'employment_type' => ['required', 'string', 'max:255'],
 
             // Bank Details
             'bank_name' => ['required', 'string', 'max:255'],
@@ -36,13 +37,12 @@ class StaffController extends Controller
             'account_name' => ['required', 'string', 'max:255'],
 
             // Compensation
-            'salary' => ['required', 'numeric', 'min:0'],
-
-            // Pension Details
-            // 'pf-name' => ['required', 'string', 'max:255'],
-            // 'rsa_pin' => ['required', 'string', 'max:50'],
-            // 'pension_employee_rate' => ['required', 'numeric', 'min:0', 'max:100'],
-            // 'pension_employer_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'gross_salary' => ['required', 'numeric', 'min:0'],
+            'net_salary' => ['required', 'numeric', 'min:0'],
+            'tax_deduction' => ['required', 'numeric', 'min:0'],
+            'pension_employee' => ['required', 'numeric', 'min:0'],
+            'pension_employer' => ['required', 'numeric', 'min:0'],
+            'nhf' => ['required', 'numeric', 'min:0'],
         ]);
 
         $password = '123456';
@@ -59,16 +59,18 @@ class StaffController extends Controller
             'job_title' => $request->job_title,
             'department' => $request->department,
             'start_date' => $request->start_date,
-            'dob' => $request->dob,
+            'dob' => $request->date_of_birth,
             'state_of_origin' => $request->state_of_origin,
+            'employment_type' => $request->employment_type,
             'bank_name' => $request->bank_name,
             'account_number' => $request->account_number,
             'account_name' => $request->account_name,
-            'salary' => $request->salary,
-            'pfa_name' => $request->pfa_name,
-            'rsa_pin' => $request->rsa_pin,
-            'pension_employee_rate' => 0.0, //$request->pension_employee_rate,
-            'pension_employer_rate' => 0.0, //$request->pension_employer_rate,
+            'salary' => $request->gross_salary,
+            'net_salary' => $request->net_salary,
+            'pension_employee_rate' => $request->pension_employee,
+            'pension_employer_rate' => $request->pension_employer,
+            'tax_deduction' => $request->tax_deduction,
+            'nhf' => $request->nhf,
             'invitation_status' => 'Not invited',
             'is_approved' => true, // Staff added by employees are auto-approved for their own system
         ]);
