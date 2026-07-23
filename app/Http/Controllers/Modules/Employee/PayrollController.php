@@ -282,10 +282,7 @@ class PayrollController extends Controller
     public function downloadPayslip(Request $request, $id)
     {
         $payslip = \App\Models\Payslip::with('user.parent')->findOrFail($id);
-
-         $employer = $payslip->user;
-        $companyName = $employer->parent->name;
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.payslip', compact('payslip', 'companyName'));
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.payslip', compact('payslip'));
         return $pdf->download('payslip-' . $payslip->period . '.pdf');
     }
 }
