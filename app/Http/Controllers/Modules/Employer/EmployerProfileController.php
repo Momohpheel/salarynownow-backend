@@ -5,10 +5,22 @@ namespace App\Http\Controllers\Modules\Employer;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class EmployerProfileController extends Controller
 {
+    public function show(Request $request)
+    {
+        $employer = $request->user();
+
+        if ($employer->type !== User::TYPE_EMPLOYEE) {
+            return $this->sendError('Unauthorized. Only employers can view their profile.', null, 403);
+        }
+
+        $employer->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
+
+        return $this->sendResponse($employer, 'Employer profile retrieved successfully.');
+    }
+
     public function update(Request $request)
     {
         $employer = $request->user();
