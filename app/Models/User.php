@@ -52,6 +52,8 @@ use Laravel\Sanctum\HasApiTokens;
     'rsa_pin',
     'pension_employee_rate',
     'pension_employer_rate',
+    'pension_employee',
+    'pension_employer',
     'invitation_status',
     'is_active',
     'tax_deduction',
