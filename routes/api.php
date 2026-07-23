@@ -119,7 +119,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/staff', [StaffController::class, 'index']);
         Route::post('/staff', [StaffController::class, 'store']);
         Route::post('/staff/bulk-upload', [StaffController::class, 'bulkUpload']);
-        Route::put('/staff/{staff}', [StaffController::class, 'update']);
+        Route::post('/staff/{staff}', [StaffController::class, 'update']);
         Route::post('/staff/{staff}/toggle-status', [StaffController::class, 'toggleStatus']);
         Route::post('/staff/{staff}/invite', [StaffController::class, 'invite']);
 
