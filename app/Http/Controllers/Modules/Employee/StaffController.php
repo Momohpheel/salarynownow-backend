@@ -225,8 +225,6 @@ class StaffController extends Controller
             'last_name',
             'email',
             'phone',
-            'date_of_birth',
-            'state_of_origin',
             'department',
             'role',
             'start_date',
