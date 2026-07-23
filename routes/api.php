@@ -29,6 +29,7 @@ use App\Http\Controllers\Modules\Staff\PayslipController as StaffPayslipControll
 use App\Http\Controllers\Modules\Staff\SalaryAdvanceController as StaffSalaryAdvanceController;
 use App\Http\Controllers\Modules\Employee\ReportController as EmployeeReportController;
 use App\Http\Controllers\Modules\Employee\StaffController;
+use App\Http\Controllers\Modules\Employer\EmployerProfileController;
 use App\Http\Controllers\Modules\SuperAdmin\DashboardController as SuperAdminDashboardController;
 use App\Http\Controllers\Modules\SuperAdmin\LoginController as SuperAdminLoginController;
 use App\Http\Controllers\Modules\SuperAdmin\MerchantController;
@@ -112,6 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('employee')->group(function () {
         Route::post('/complete-profile', [EmployeeRegistrationController::class, 'completeProfile']);
+        Route::put('/profile', [EmployerProfileController::class, 'update']);
         Route::get('/dashboard', [EmployeeDashboardController::class, 'index']);
         Route::get('/wallet', [EmployeeWalletController::class, 'index']);
         
