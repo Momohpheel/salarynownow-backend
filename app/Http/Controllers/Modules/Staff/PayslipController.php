@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Modules\Staff;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PayslipController extends Controller
 {
@@ -29,5 +30,12 @@ class PayslipController extends Controller
         });
 
         return $this->sendResponse($data, 'Payslip history retrieved successfully');
+    }
+
+    public function download(Request $request, $id)
+    {
+        $payslip = \App\Models\Payslip::with('user.parent')->findOrFail($id);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.payslip', compact('payslip'));
+        return $pdf->download('payslip-' . $payslip->period . '.pdf');
     }
 }

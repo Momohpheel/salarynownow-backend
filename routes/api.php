@@ -105,6 +105,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/bank/verify', [StaffProfileController::class, 'verifyBank']);
         Route::post('/bank/update', [StaffProfileController::class, 'updateBank']);
         Route::get('/payslips', [StaffPayslipController::class, 'index']);
+        Route::get('/payslips/{id}/download', [StaffPayslipController::class, 'download']);
         Route::get('/salary-advance/eligibility', [StaffSalaryAdvanceController::class, 'eligibility']);
         Route::post('/salary-advance', [StaffSalaryAdvanceController::class, 'store']);
     });
@@ -133,6 +134,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/payrolls/check-balance', [EmployeePayrollController::class, 'checkBalance']);
         Route::post('/payrolls', [EmployeePayrollController::class, 'store']);
         Route::get('/payrolls/{payroll}', [EmployeePayrollController::class, 'show']);
+        Route::get('/payslips/{id}/download', [EmployeePayrollController::class, 'downloadPayslip']);
 
         // Team Management
         Route::get('/team', [EmployeeTeamController::class, 'index']);

@@ -278,4 +278,11 @@ class PayrollController extends Controller
 
         return $this->sendResponse($data, 'Payroll details retrieved successfully');
     }
+
+    public function downloadPayslip(Request $request, $id)
+    {
+        $payslip = \App\Models\Payslip::with('user.parent')->findOrFail($id);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.payslip', compact('payslip'));
+        return $pdf->download('payslip-' . $payslip->period . '.pdf');
+    }
 }
