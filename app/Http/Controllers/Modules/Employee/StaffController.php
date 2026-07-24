@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\StaffInvitation;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
@@ -293,18 +294,21 @@ class StaffController extends Controller
                 continue;
             }
 
+            $formattedStartDate = $this->formatDate($rowData['start_date']);
+            $formattedDob = !empty($rowData['date_of_birth']) ? $this->formatDate($rowData['date_of_birth']) : null;
+            
             User::create([
                 'name' => $rowData['first_name'] . ' ' . $rowData['last_name'],
                 'first_name' => $rowData['first_name'],
                 'last_name' => $rowData['last_name'],
                 'email' => $rowData['email'],
                 'phone_number' => $rowData['phone'] ?? null,
-                'dob' => $rowData['date_of_birth'] ?? null,
+                'dob' => $formattedDob,
                 'state_of_origin' => $rowData['state_of_origin'] ?? null,
                 'department' => $rowData['department'] ?? 'General',
                 'job_title' => $rowData['role'] ?? 'Staff',
                 'role_id' => null, // Assuming role is not being set from CSV for now
-                'start_date' => $rowData['start_date'] ?? null,
+                'start_date' => $formattedStartDate,
                 'bank_name' => $rowData['bank_name'] ?? null,
                 'account_number' => $rowData['account_number'] ?? null,
                 'account_name' => $rowData['account_name'] ?? null,
@@ -329,6 +333,15 @@ class StaffController extends Controller
         return $this->sendResponse($summary, "Bulk upload process completed.");
     }
 
+    private function formatDate(string $date): ?string
+    {
+        try {
+            return Carbon::parse($date)->format('d-m-Y');
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
     private function validateRow(array $data): array
     {
         $validator = Validator::make($data, [
@@ -342,8 +355,30 @@ class StaffController extends Controller
             'pension_employer' => ['nullable', 'numeric'],
             'tax_deduction' => ['nullable', 'numeric', 'min:0'],
             'nhf' => ['nullable', 'numeric', 'min:0'], // Basic validation for now
+            'start_date' => ['required'],
+            'date_of_birth' => ['nullable'],
         ]);
 
-        return $validator->fails() ? $validator->errors()->toArray() : [];
+        $errors = $validator->fails() ? $validator->errors()->toArray() : [];
+
+        // Validate start_date is a valid date
+        if (!empty($data['start_date'])) {
+            try {
+                Carbon::parse($data['start_date']);
+            } catch (\Exception $e) {
+                $errors['start_date'][] = 'The start_date is not a valid date.';
+            }
+        }
+
+        // Validate date_of_birth is a valid date if provided
+        if (!empty($data['date_of_birth'])) {
+            try {
+                Carbon::parse($data['date_of_birth']);
+            } catch (\Exception $e) {
+                $errors['date_of_birth'][] = 'The date_of_birth is not a valid date.';
+            }
+        }
+
+        return $errors;
     }
 }
