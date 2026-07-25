@@ -147,7 +147,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Team Management
         Route::get('/team', [EmployeeTeamController::class, 'index']);
         Route::post('/team', [EmployeeTeamController::class, 'store']);
-        Route::put('/team/{member}/role', [EmployeeTeamController::class, 'updateRole']);
+        Route::post('/team/{member}/role', [EmployeeUserRoleController::class, 'assignRole']);
         Route::post('/team/{member}/toggle-status', [EmployeeTeamController::class, 'toggleStatus']);
 
         // Reports
@@ -161,7 +161,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('roles', EmployeeRoleController::class);
         Route::get('/permissions', [EmployeeRoleController::class, 'permissions']);
         Route::post('/roles/{role}/permissions', [EmployeeRoleController::class, 'assignPermissions']);
-        Route::post('/roles/{role}/permissions', [EmployeeRoleController::class, 'updatePermissions']);
+      //  Route::post('/roles/{role}/permissions', [EmployeeRoleController::class, 'updatePermissions']);
 
         // User Role Assignment
         Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'assignRole']);
