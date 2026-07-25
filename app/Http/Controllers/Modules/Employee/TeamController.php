@@ -88,6 +88,7 @@ class TeamController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
+    
         if ($member->employer_id !== $employerId) {
             return $this->sendError('Unauthorized.', null, 403);
         }

@@ -13,6 +13,7 @@ class UserRoleController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
+        $user = User::find($user->id);
        if ($user->employer_id !== $employerId) {
             return $this->sendError('Unauthorized.', null, 403);
         }
