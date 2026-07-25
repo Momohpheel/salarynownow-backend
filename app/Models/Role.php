@@ -9,7 +9,8 @@ use Spatie\Activitylog\LogOptions;
 
 class Role extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory; 
+    //LogsActivity;
 
     protected $fillable = ['employer_id', 'name', 'description', 'status'];
 
@@ -28,12 +29,12 @@ class Role extends Model
         return $this->belongsToMany(Permission::class);
     }
 
-    public function getActivitylogOptions(): LogOptions
-    {
-        return LogOptions::defaults()
-            ->logOnly(['employer_id', 'name', 'description', 'status'])
-            ->useLogName('Role')
-            ->logOnlyDirty()
-            ->dontSubmitEmptyLogs();
-    }
+    // public function getActivitylogOptions(): LogOptions
+    // {
+    //     return LogOptions::defaults()
+    //         ->logOnly(['employer_id', 'name', 'description', 'status'])
+    //         ->useLogName('Role')
+    //         ->logOnlyDirty()
+    //         ->dontSubmitEmptyLogs();
+    // }
 }
