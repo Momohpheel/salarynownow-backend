@@ -9,11 +9,11 @@ use Illuminate\Validation\Rule;
 
 class UserRoleController extends Controller
 {
-    public function assignRole(Request $request, User $user)
+    public function assignRole(Request $request, $user_id)
     {
         $employerId = $request->user()->getEmployerId();
 
-        $user = User::find($user->id);
+        $user = User::find($user_id);
        if ($user->employer_id !== $employerId) {
             return $this->sendError('Unauthorized.', null, 403);
         }
