@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Modules\Employee;
 use App\Http\Controllers\Controller;
 use App\Mail\EmployerRegistered;
 use App\Mail\ProfileCompleted;
+use App\Models\Role;
 use App\Models\User;
-use App\Models\Wallet;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,14 +49,33 @@ class RegistrationController extends Controller
             $merchantId = $defaultMerchant?->id;
         }
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone_number' => $request->phone_number,
-            'password' => Hash::make($request->password),
-            'type' => User::TYPE_EMPLOYEE,
-            'parent_id' => $merchantId, // Assigned under a merchant using slug lookup
-        ]);
+        $user = DB::transaction(function () use ($request, $merchantId) {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone_number' => $request->phone_number,
+                'password' => Hash::make($request->password),
+                'type' => User::TYPE_EMPLOYEE,
+                'parent_id' => $merchantId, // Assigned under a merchant using slug lookup
+            ]);
+
+            $defaultRole = Role::firstOrCreate(
+                [
+                    'employer_id' => $user->id,
+                    'name' => 'admin',
+                ],
+                [
+                    'description' => 'Default admin role for employer account owner.',
+                    'status' => 'active',
+                ]
+            );
+
+            $user->update([
+                'role_id' => $defaultRole->id,
+            ]);
+
+            return $user->fresh('role');
+        });
 
         Mail::to($user->email)->send(new EmployerRegistered($user));
 
