@@ -4,19 +4,21 @@ namespace App\Http\Controllers\Modules\Staff;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class PayslipController extends Controller
 {
     public function index(Request $request)
     {
         $payslips = $request->user()->payslips()
+            ->with('payroll:id,reference')
             ->orderBy('created_at', 'desc')
             ->get();
 
         $data = $payslips->map(function($p) {
             return [
                 'id' => $p->id,
+                'reference' => $p->reference,
+                'payroll_reference' => $p->payroll?->reference,
                 'period' => $p->period,
                 'gross_salary' => '₦' . number_format($p->gross_salary, 2),
                 'pension_employee' => '₦' . number_format($p->pension_employee, 2),
@@ -32,7 +34,7 @@ class PayslipController extends Controller
         return $this->sendResponse($data, 'Payslip history retrieved successfully');
     }
 
-    public function download(Request $request, $id)
+    public function download($id)
     {
         $payslip = \App\Models\Payslip::with('user.parent')->findOrFail($id);
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.payslip', compact('payslip'));

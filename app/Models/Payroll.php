@@ -12,6 +12,7 @@ class Payroll extends Model
     const STATUS_FAILED = 'failed';
 
     protected $fillable = [
+        'reference',
         'user_id',
         'description',
         'amount',

@@ -50,6 +50,7 @@ class DashboardController extends Controller
             ->map(function ($p) {
                 return [
                     'id' => $p->id,
+                    'reference' => $p->reference,
                     'title' => $p->processed_at->format('d M Y') . ' run',
                     'meta' => "{$p->staff_count} employee(s)",
                     'amount' => $this->formatLargeAmount($p->amount),

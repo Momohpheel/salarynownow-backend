@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Models\Payroll;
 use App\Models\User;
 use App\Models\Payslip;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PayrollController extends Controller
 {
@@ -131,8 +133,6 @@ class PayrollController extends Controller
             'staff_data.*.deduction_type' => ['nullable', 'string'],
         ]);
 
-        $user = $request->user();
-        // $employer = $user->employer()->first();
         $employerId = $request->user()->getEmployerId();
         
         $employer = User::with('wallet')->find($employerId);
@@ -146,12 +146,13 @@ class PayrollController extends Controller
             $totalGross = 0;
             $payslips = [];
 
-            $payroll = \App\Models\Payroll::create([
+            $payroll = Payroll::create([
+                'reference' => $this->generatePayrollReference(),
                 'user_id' => $employer->id,
                 'description' => now()->format('F Y') . ' Salary',
                 'amount' => 0, // Will update after calculation
                 'staff_count' => 0,
-                'status' => \App\Models\Payroll::STATUS_PENDING,
+                'status' => Payroll::STATUS_PENDING,
                 'processed_at' => $request->pay_date,
                 'period_start' => $request->period_start,
                 'period_end' => $request->period_end,
@@ -169,6 +170,7 @@ class PayrollController extends Controller
                 $netPay = $staff->salary - $pensionEE - $tax - $nhf - $deductions;
 
                 $payslip = Payslip::create([
+                    'reference' => $this->generatePayslipReference(),
                     'user_id' => $staff->id,
                     'payroll_id' => $payroll->id,
                     'period' => $payroll->period_start->format('M Y'),
@@ -198,7 +200,7 @@ class PayrollController extends Controller
             $payroll->update([
                 'amount' => $totalNetToPay,
                 'staff_count' => $staffCount,
-                //'status' => \App\Models\Payroll::STATUS_COMPLETED,
+                //'status' => Payroll::STATUS_COMPLETED,
             ]);
 
             // Deduct from wallet
@@ -219,7 +221,30 @@ class PayrollController extends Controller
             // $payroll->load('user');
             // Mail::to($payroll->user->email)->send(new PayrollCompleted($payroll));
 
-            return $this->sendResponse($payroll, 'Payroll processed successfully', true, 201);
+            $payroll->load('payslips');
+
+            $data = [
+                'id' => $payroll->id,
+                'reference' => $payroll->reference,
+                'description' => $payroll->description,
+                'amount' => (float) $payroll->amount,
+                'staff_count' => $payroll->staff_count,
+                'status' => $payroll->status,
+                'processed_at' => $payroll->processed_at?->toISOString(),
+                'period_start' => $payroll->period_start?->format('Y-m-d'),
+                'period_end' => $payroll->period_end?->format('Y-m-d'),
+                'payslips' => $payroll->payslips->map(function ($payslip) {
+                    return [
+                        'id' => $payslip->id,
+                        'reference' => $payslip->reference,
+                        'user_id' => $payslip->user_id,
+                        'net_salary' => (float) $payslip->net_salary,
+                        'status' => $payslip->status,
+                    ];
+                })->values(),
+            ];
+
+            return $this->sendResponse($data, 'Payroll processed successfully', true, 201);
         });
     }
 
@@ -227,13 +252,14 @@ class PayrollController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        $payrolls = \App\Models\Payroll::where('user_id', $employerId)
+        $payrolls = Payroll::where('user_id', $employerId)
             ->orderBy('processed_at', 'desc')
             ->get();
 
         $data = $payrolls->map(function($p) {
             return [
                 'id' => $p->id,
+                'reference' => $p->reference,
                 'run_date' => $p->processed_at->format('d M Y'),
                 'pay_period' => $p->period_start->format('d M') . ' — ' . $p->period_end->format('d M Y'),
                 'staff_count' => $p->staff_count,
@@ -248,7 +274,7 @@ class PayrollController extends Controller
     public function show(Request $request, $id)
     {
         $employerId = $request->user()->getEmployerId();
-        $payroll = \App\Models\Payroll::where('user_id', $employerId)
+        $payroll = Payroll::where('user_id', $employerId)
             ->with(['payslips.user'])
             ->findOrFail($id);
         
@@ -258,6 +284,7 @@ class PayrollController extends Controller
         $data = [
 
                 'id' => $payroll->id,
+                'reference' => $payroll->reference,
                 'period' => $payroll->period_start->format('d M') . ' — ' . $payroll->period_end->format('d M Y'),
                 'status' => $payroll->status,
                 'summary' => [
@@ -269,6 +296,7 @@ class PayrollController extends Controller
                 'staff_payments' => $payroll->payslips->map(function($p) {
                     return [
                         'id' => $p->id,
+                        'reference' => $p->reference,
                         'name' => $p->user->name,
                         'bank' => $p->user->bank_name ?? '-',
                         'account' => $p->user->account_number ?? '-',
@@ -290,12 +318,30 @@ class PayrollController extends Controller
         return $this->sendResponse($data, 'Payroll details retrieved successfully');
     }
 
-    public function downloadPayslip(Request $request, $id)
+    public function downloadPayslip($id)
     {
         $payslip = \App\Models\Payslip::with('user.parent')->findOrFail($id);
         $user = User::find($payslip->user_id);
         $companyName = $user->company_name;
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.payslip', compact('payslip', 'companyName'));
         return $pdf->download('payslip-' . $payslip->period . '.pdf');
+    }
+
+    private function generatePayrollReference(): string
+    {
+        do {
+            $reference = 'PRL-' . Str::upper(Str::random(10));
+        } while (Payroll::where('reference', $reference)->exists());
+
+        return $reference;
+    }
+
+    private function generatePayslipReference(): string
+    {
+        do {
+            $reference = 'PSL-' . Str::upper(Str::random(10));
+        } while (Payslip::where('reference', $reference)->exists());
+
+        return $reference;
     }
 }

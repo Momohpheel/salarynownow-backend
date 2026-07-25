@@ -124,7 +124,9 @@ class StaffController extends Controller
                 'payrolls' => $s->payslips->map(function ($payslip) {
                     return [
                         'payslip_id' => $payslip->id,
+                        'payslip_reference' => $payslip->reference,
                         'payroll_id' => $payslip->payroll?->id,
+                        'payroll_reference' => $payslip->payroll?->reference,
                         'period' => $payslip->period,
                         'gross_salary' => (float) $payslip->gross_salary,
                         'net_salary' => (float) $payslip->net_salary,

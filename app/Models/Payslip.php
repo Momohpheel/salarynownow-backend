@@ -14,6 +14,7 @@ class Payslip extends Model
 
 
     protected $fillable = [
+        'reference',
         'user_id',
         'payroll_id',
         'period',

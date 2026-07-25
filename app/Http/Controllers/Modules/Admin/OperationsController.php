@@ -330,6 +330,7 @@ class OperationsController extends Controller
             'items' => $payrolls->map(function ($payroll) {
                 return [
                     'id' => $payroll->id,
+                    'reference' => $payroll->reference,
                     'company' => $payroll->user->company_name ?? $payroll->user->name ?? '—',
                     'run_date' => $payroll->processed_at?->format('d M Y') ?? '—',
                     'pay_period' => $payroll->period_start && $payroll->period_end
