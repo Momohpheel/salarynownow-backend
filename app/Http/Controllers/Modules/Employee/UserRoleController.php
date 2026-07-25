@@ -13,7 +13,7 @@ class UserRoleController extends Controller
     {
         $employerId = $request->user()->getEmployerId();
 
-        if (! $this->belongsToEmployer($user, $employerId)) {
+       if ($user->employer_id !== $employerId) {
             return $this->sendError('Unauthorized.', null, 403);
         }
 
@@ -75,6 +75,7 @@ class UserRoleController extends Controller
             return true;
         }
 
+        
         return (int) $user->employer_id === $employerId
             || (int) $user->parent_id === $employerId;
     }
