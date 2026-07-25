@@ -4,15 +4,26 @@ namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Models\Role;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class UserRoleController extends Controller
 {
     public function assignRole(Request $request, User $user)
     {
+        $employerId = $request->user()->getEmployerId();
+
+        if (! $this->belongsToEmployer($user, $employerId)) {
+            return $this->sendError('Unauthorized.', null, 403);
+        }
+
         $request->validate([
-            'role_id' => ['required', 'exists:roles,id'],
+            'role_id' => [
+                'required',
+                Rule::exists('roles', 'id')->where(function ($query) use ($employerId) {
+                    return $query->where('employer_id', $employerId);
+                }),
+            ],
         ]);
 
         $user->update(['role_id' => $request->role_id]);
@@ -22,8 +33,19 @@ class UserRoleController extends Controller
 
     public function updateRole(Request $request, User $user)
     {
+        $employerId = $request->user()->getEmployerId();
+
+        if (! $this->belongsToEmployer($user, $employerId)) {
+            return $this->sendError('Unauthorized.', null, 403);
+        }
+
         $request->validate([
-            'role_id' => ['required', 'exists:roles,id'],
+            'role_id' => [
+                'required',
+                Rule::exists('roles', 'id')->where(function ($query) use ($employerId) {
+                    return $query->where('employer_id', $employerId);
+                }),
+            ],
         ]);
 
         $user->update(['role_id' => $request->role_id]);
@@ -31,8 +53,29 @@ class UserRoleController extends Controller
         return $this->sendResponse($user->load('role'), 'Role updated successfully.');
     }
 
-    public function getUserRole(User $user)
+    public function getUserRole(Request $request, User $user)
     {
-        return $this->sendResponse($user->load('role'), 'User role retrieved successfully.');
+        $employerId = $request->user()->getEmployerId();
+
+        if (! $this->belongsToEmployer($user, $employerId)) {
+            return $this->sendError('Unauthorized.', null, 403);
+        }
+
+        return $this->sendResponse(
+            $user->load(['role' => function ($query) use ($employerId) {
+                $query->where('employer_id', $employerId);
+            }]),
+            'User role retrieved successfully.'
+        );
+    }
+
+    private function belongsToEmployer(User $user, int $employerId): bool
+    {
+        if ($user->id === $employerId) {
+            return true;
+        }
+
+        return (int) $user->employer_id === $employerId
+            || (int) $user->parent_id === $employerId;
     }
 }

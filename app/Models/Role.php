@@ -11,11 +11,16 @@ class Role extends Model
 {
     use HasFactory, LogsActivity;
 
-    protected $fillable = ['name', 'description', 'status'];
+    protected $fillable = ['employer_id', 'name', 'description', 'status'];
 
     public function users()
     {
         return $this->hasMany(User::class);
+    }
+
+    public function employer()
+    {
+        return $this->belongsTo(User::class, 'employer_id');
     }
 
     public function permissions()
@@ -26,7 +31,7 @@ class Role extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'description', 'status'])
+            ->logOnly(['employer_id', 'name', 'description', 'status'])
             ->useLogName('Role')
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
