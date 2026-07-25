@@ -161,11 +161,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('roles', EmployeeRoleController::class);
         Route::get('/permissions', [EmployeeRoleController::class, 'permissions']);
         Route::post('/roles/{role}/permissions', [EmployeeRoleController::class, 'assignPermissions']);
-        Route::put('/roles/{role}/permissions', [EmployeeRoleController::class, 'updatePermissions']);
+        Route::post('/roles/{role}/permissions', [EmployeeRoleController::class, 'updatePermissions']);
 
         // User Role Assignment
         Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'assignRole']);
-        Route::put('/users/{user}/role', [EmployeeUserRoleController::class, 'updateRole']);
+        Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'updateRole']);
         Route::get('/users/{user}/role', [EmployeeUserRoleController::class, 'getUserRole']);
     });
 });
