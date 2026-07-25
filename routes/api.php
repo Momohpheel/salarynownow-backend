@@ -23,6 +23,8 @@ use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginControll
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
 use App\Http\Controllers\Modules\Staff\LoginController as StaffLoginController;
 use App\Http\Controllers\Modules\Staff\ForgotPasswordController as StaffForgotPasswordController;
+use App\Http\Controllers\Modules\Staff\VerifyOtpController as StaffVerifyOtpController;
+use App\Http\Controllers\Modules\Staff\ResendOtpController as StaffResendOtpController;
 use App\Http\Controllers\Modules\Staff\DashboardController as StaffDashboardController;
 use App\Http\Controllers\Modules\Staff\ProfileController as StaffProfileController;
 use App\Http\Controllers\Modules\Staff\PayslipController as StaffPayslipController;
@@ -72,6 +74,8 @@ Route::post('/partner/reset-password', [PartnerForgotPasswordController::class, 
 
 // Staff Module
 Route::post('/staff/login', [StaffLoginController::class, 'login']);
+Route::post('/staff/verify-otp', [StaffVerifyOtpController::class, 'verify']);
+Route::post('/staff/resend-otp', [StaffResendOtpController::class, 'resend']);
 Route::post('/staff/forgot-password', [StaffForgotPasswordController::class, 'sendResetLink']);
 Route::post('/staff/reset-password', [StaffForgotPasswordController::class, 'reset']);
 
