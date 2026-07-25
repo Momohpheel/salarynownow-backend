@@ -82,7 +82,12 @@ class StaffController extends Controller
     public function index(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
-        $query = User::where('parent_id', $employerId)->staff();
+        $query = User::where('parent_id', $employerId)
+            ->staff()
+            ->with([
+                'staffAdvances',
+                'payslips.payroll',
+            ]);
 
         // Search by name, email, or phone
         if ($request->has('search')) {
@@ -115,7 +120,28 @@ class StaffController extends Controller
                 'is_active' => $s->is_active,
                 'department' => $s->department ?? '-',
                 'job_title' => $s->job_title ?? '-',
-                'start_date' => $s->start_date ? Carbon::parse($s->start_date)->format('d-m-Y') : '-'
+                'start_date' => $s->start_date ? Carbon::parse($s->start_date)->format('d-m-Y') : '-',
+                'payrolls' => $s->payslips->map(function ($payslip) {
+                    return [
+                        'payslip_id' => $payslip->id,
+                        'payroll_id' => $payslip->payroll?->id,
+                        'period' => $payslip->period,
+                        'gross_salary' => (float) $payslip->gross_salary,
+                        'net_salary' => (float) $payslip->net_salary,
+                        'status' => $payslip->status,
+                        'description' => $payslip->payroll?->description,
+                        'processed_at' => $payslip->payroll?->processed_at?->toISOString(),
+                    ];
+                })->values(),
+                'advances' => $s->staffAdvances->map(function ($advance) {
+                    return [
+                        'id' => $advance->id,
+                        'amount' => (float) $advance->amount,
+                        'status' => $advance->status,
+                        'created_at' => $advance->created_at?->toISOString(),
+                        'updated_at' => $advance->updated_at?->toISOString(),
+                    ];
+                })->values(),
             ];
         });
 
@@ -140,10 +166,13 @@ class StaffController extends Controller
             'salary' => ['sometimes', 'numeric', 'min:0'],
             'dob' => ['sometimes', 'nullable', 'date'],
             'state_of_origin' => ['sometimes', 'nullable', 'string', 'max:255'],
+             'bank_name' => ['sometimes','nullable', 'string', 'max:255'],
+            'account_number' => ['sometimes','nullable', 'string', 'max:20'],
+            'account_name' => ['sometimes','nullable', 'string', 'max:255'],
         ]);
 
         $data = $request->only([
-            'first_name', 'last_name', 'email', 'phone_number', 
+            'first_name', 'last_name', 'email', 'phone_number', 'bank_name', 'account_number', 'account_name',
             'job_title', 'department', 'salary', 'dob', 'state_of_origin'
         ]);
 
