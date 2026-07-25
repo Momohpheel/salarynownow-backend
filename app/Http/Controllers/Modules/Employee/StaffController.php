@@ -109,13 +109,13 @@ class StaffController extends Controller
                 'phone' => $s->phone_number ?? '-',
                 'bank' => $s->bank_name ?? '-',
                 'state_of_origin' => $s->state_of_origin ?? '-',
-                'date_of_birth' => $s->dob ?? '-',
+                'date_of_birth' => $s->dob ? Carbon::parse($s->dob)->format('d-m-Y') : '-',
                 'salary' => '₦' . number_format($s->salary, 2),
                 'status' => $s->invitation_status,
                 'is_active' => $s->is_active,
                 'department' => $s->department ?? '-',
                 'job_title' => $s->job_title ?? '-',
-                'start_date' => $s->start_date ?? '-'
+                'start_date' => $s->start_date ? Carbon::parse($s->start_date)->format('d-m-Y') : '-'
             ];
         });
 
@@ -359,7 +359,7 @@ class StaffController extends Controller
                 $parsedDate = Carbon::createFromFormat($format, $date);
 
                 if ($parsedDate !== false && $parsedDate->format($format) === $date) {
-                    return $parsedDate->format('d-m-Y');
+                    return $parsedDate->format('Y-m-d');
                 }
             } catch (\Throwable) {
                 continue;
