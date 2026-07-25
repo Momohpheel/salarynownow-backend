@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\EmployerApproved;
 use App\Mail\EmployerRejected;
+use App\Models\Role;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Sarepay\SarepayService;
@@ -177,5 +178,35 @@ class EmployeeController extends Controller
         Mail::to($employee->email)->send(new EmployerRejected($employee, $request->reason));
 
         return $this->sendResponse(null, 'Employee KYC rejected successfully.');
+    }
+
+    public function createDefaultRole(Request $request, User $employee)
+    {
+        $admin = $request->user();
+
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
+            return $this->sendError('Employee not found or unauthorized', null, 404);
+        }
+
+        $employee = DB::transaction(function () use ($employee) {
+            $defaultRole = Role::firstOrCreate(
+                [
+                    'employer_id' => $employee->id,
+                    'name' => 'admin',
+                ],
+                [
+                    'description' => 'Default admin role for employer account owner.',
+                    'status' => 'active',
+                ]
+            );
+
+            $employee->update([
+                'role_id' => $defaultRole->id,
+            ]);
+
+            return $employee->fresh('role');
+        });
+
+        return $this->sendResponse($employee, 'Default admin role created successfully.');
     }
 }
