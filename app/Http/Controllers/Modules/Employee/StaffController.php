@@ -335,11 +335,38 @@ class StaffController extends Controller
 
     private function formatDate(string $date): ?string
     {
-        try {
-            return Carbon::parse($date)->format('d-m-Y');
-        } catch (\Exception $e) {
+        $date = trim($date);
+
+        if ($date === '') {
             return null;
         }
+
+        $supportedFormats = [
+            'd/m/Y',
+            'd-m-Y',
+            'Y-m-d',
+            'Y/m/d',
+            'd.m.Y',
+            'Y.m.d',
+            'd M Y',
+            'd F Y',
+            'M d Y',
+            'F d Y',
+        ];
+
+        foreach ($supportedFormats as $format) {
+            try {
+                $parsedDate = Carbon::createFromFormat($format, $date);
+
+                if ($parsedDate !== false && $parsedDate->format($format) === $date) {
+                    return $parsedDate->format('d-m-Y');
+                }
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     private function validateRow(array $data): array
@@ -361,20 +388,14 @@ class StaffController extends Controller
 
         $errors = $validator->fails() ? $validator->errors()->toArray() : [];
 
-        // Validate start_date is a valid date
         if (!empty($data['start_date'])) {
-            try {
-                Carbon::parse($data['start_date']);
-            } catch (\Exception $e) {
+            if ($this->formatDate($data['start_date']) === null) {
                 $errors['start_date'][] = 'The start_date is not a valid date.';
             }
         }
 
-        // Validate date_of_birth is a valid date if provided
         if (!empty($data['date_of_birth'])) {
-            try {
-                Carbon::parse($data['date_of_birth']);
-            } catch (\Exception $e) {
+            if ($this->formatDate($data['date_of_birth']) === null) {
                 $errors['date_of_birth'][] = 'The date_of_birth is not a valid date.';
             }
         }
