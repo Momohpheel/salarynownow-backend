@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class TeamController extends Controller
 {
@@ -18,17 +19,23 @@ class TeamController extends Controller
         
         $team = User::where('employer_id', $employerId)
             ->where('type', User::TYPE_EMPLOYEE)
+            ->with('role')
             ->get();
 
         // Include the actual owner (employer) in the list
-        $owner = User::find($employerId);
+        $owner = User::with('role')->find($employerId);
 
         $data = collect([$owner])->concat($team)->map(function($m) {
             return [
                 'id' => $m->id,
                 'name' => $m->name,
                 'email' => $m->email,
-                'role' => $m->role,
+                'role' => $m->role ? [
+                    'id' => $m->role->id,
+                    'name' => $m->role->name,
+                    'description' => $m->role->description,
+                    'status' => $m->role->status,
+                ] : null,
                 'is_active' => $m->is_active,
             ];
         });
@@ -44,14 +51,19 @@ class TeamController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:'.User::class],
-            'role' => ['required', 'string', 'in:Owner,Finance,Hr,Viewer'],
+            'role_id' => [
+                'required',
+                Rule::exists('roles', 'id')->where(function ($query) use ($employerId) {
+                    return $query->where('employer_id', $employerId);
+                }),
+            ],
         ]);
 
-          $password = '123456';
+        $password = Str::random(12);
         $member = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'role' => $request->role,
+            'role_id' => $request->role_id,
             'type' => User::TYPE_EMPLOYEE,
             'employer_id' => $employerId,
             'password' => Hash::make($password),
@@ -61,7 +73,7 @@ class TeamController extends Controller
 
         Mail::to($member->email)->send(new TeamMemberAdded($member, $employer, $password));
 
-        return $this->sendResponse($member, 'Team member added successfully', true, 201);
+        return $this->sendResponse($member->load('role'), 'Team member added successfully', true, 201);
     }
 
     public function updateRole(Request $request, User $member)
@@ -73,12 +85,17 @@ class TeamController extends Controller
         }
 
         $request->validate([
-            'role' => ['required', 'string', 'in:Owner,Finance,Hr,Viewer'],
+            'role_id' => [
+                'required',
+                Rule::exists('roles', 'id')->where(function ($query) use ($employerId) {
+                    return $query->where('employer_id', $employerId);
+                }),
+            ],
         ]);
 
-        $member->update(['role' => $request->role]);
+        $member->update(['role_id' => $request->role_id]);
 
-        return $this->sendResponse($member, 'Role updated successfully');
+        return $this->sendResponse($member->load('role'), 'Role updated successfully');
     }
 
     public function toggleStatus(Request $request, User $member)
