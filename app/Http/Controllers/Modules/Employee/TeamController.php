@@ -26,16 +26,24 @@ class TeamController extends Controller
         $owner = User::with('role')->find($employerId);
 
         $data = collect([$owner])->concat($team)->map(function($m) {
+            $role = $m?->getRelation('role');
+            $legacyRole = $m?->getAttribute('role');
+
             return [
                 'id' => $m->id,
                 'name' => $m->name,
                 'email' => $m->email,
-                'role' => $m->role ? [
-                    'id' => $m->role->id,
-                    'name' => $m->role->name,
-                    'description' => $m->role->description,
-                    'status' => $m->role->status,
-                ] : null,
+                'role' => $role ? [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'description' => $role->description,
+                    'status' => $role->status,
+                ] : ($legacyRole ? [
+                    'id' => null,
+                    'name' => $legacyRole,
+                    'description' => null,
+                    'status' => null,
+                ] : null),
                 'is_active' => $m->is_active,
             ];
         });
