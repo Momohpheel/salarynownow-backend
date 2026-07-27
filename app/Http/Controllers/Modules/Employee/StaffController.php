@@ -212,8 +212,9 @@ class StaffController extends Controller
         $status = $request->status;
 
         $staff->update(['invitation_status' => $status]);
+        $staff->update(['status' => $status]);
 
-        return $this->sendResponse(['status' => $staff->invitation_status], 'Staff status updated successfully');
+        return $this->sendResponse(['status' => $staff->status], 'Staff status updated successfully');
     }
 
     public function invite(Request $request, User $staff)
@@ -367,6 +368,7 @@ class StaffController extends Controller
                 'password' => Hash::make($password),
                 'is_approved' => true,
                 'invitation_status' => 'Not invited',
+                'status' => 'Active',
             ]);
 
             Mail::to($staff->email)->send(new StaffAdded(
