@@ -74,6 +74,7 @@ class StaffController extends Controller
             'tax_deduction' => $request->tax_deduction,
             'nhf' => $request->nhf,
             'invitation_status' => 'Not invited',
+            'status' => 'Active',
             'is_approved' => true, // Staff added by employees are auto-approved for their own system
         ]);
 
