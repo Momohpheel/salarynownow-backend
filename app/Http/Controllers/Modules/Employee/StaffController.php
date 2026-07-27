@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\StaffAdded;
 use App\Mail\StaffInvitation;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class StaffController extends Controller
     public function store(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
+        $employer = User::find($employerId);
 
         $request->validate([
             // Personal Information
@@ -46,16 +48,15 @@ class StaffController extends Controller
             'nhf' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $password = '123456';
+        $password = Str::random(12);
         $staff = User::create([
             'name' => $request->first_name . ' ' . $request->last_name,
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'email' => $request->email,
             'phone_number' => $request->phone_number,
-            // 'password' => Hash::make(Str::random(12)), // Random password since they'll be invited
-            'type' => User::TYPE_STAFF,
             'password' => Hash::make($password), // Random password since they'll be invited
+            'type' => User::TYPE_STAFF,
             'parent_id' => $employerId,
             'job_title' => $request->job_title,
             'department' => $request->department,
@@ -75,6 +76,13 @@ class StaffController extends Controller
             'invitation_status' => 'Not invited',
             'is_approved' => true, // Staff added by employees are auto-approved for their own system
         ]);
+
+        Mail::to($staff->email)->send(new StaffAdded(
+            $staff,
+            $employer,
+            $password,
+            $this->getStaffLoginUrl()
+        ));
 
         return $this->sendResponse($staff, 'Staff member added successfully', true, 201);
     }
@@ -234,6 +242,7 @@ class StaffController extends Controller
     public function bulkUpload(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
+        $employer = User::find($employerId);
 
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
@@ -328,7 +337,9 @@ class StaffController extends Controller
             $formattedStartDate = $this->formatDate($rowData['start_date']);
             $formattedDob = !empty($rowData['date_of_birth']) ? $this->formatDate($rowData['date_of_birth']) : null;
             
-            User::create([
+            $password = Str::random(12);
+
+            $staff = User::create([
                 'name' => $rowData['first_name'] . ' ' . $rowData['last_name'],
                 'first_name' => $rowData['first_name'],
                 'last_name' => $rowData['last_name'],
@@ -351,10 +362,17 @@ class StaffController extends Controller
                 'net_salary' => $rowData['net_salary'] ?? 0,
                 'type' => User::TYPE_STAFF,
                 'parent_id' => $employerId,
-                'password' => Hash::make(Str::random(12)),
+                'password' => Hash::make($password),
                 'is_approved' => true,
                 'invitation_status' => 'Not invited',
             ]);
+
+            Mail::to($staff->email)->send(new StaffAdded(
+                $staff,
+                $employer,
+                $password,
+                $this->getStaffLoginUrl()
+            ));
 
             $summary['successful_uploads']++;
         }
@@ -432,5 +450,10 @@ class StaffController extends Controller
         }
 
         return $errors;
+    }
+
+    private function getStaffLoginUrl(): string
+    {
+        return config('app.frontend_url', 'https://salarynownow.com') . '/login';
     }
 }

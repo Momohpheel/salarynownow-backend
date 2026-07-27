@@ -79,7 +79,7 @@ class TeamController extends Controller
             'is_active' => true,
         ]);
 
-        Mail::to($member->email)->send(new TeamMemberAdded($member, $employer, $password));
+        Mail::to($member->email)->send(new TeamMemberAdded($member, $employer, $password, $this->getStaffLoginUrl()));
 
         return $this->sendResponse($member->load('role'), 'Team member added successfully', true, 201);
     }
@@ -118,5 +118,10 @@ class TeamController extends Controller
         $member->update(['is_active' => !$member->is_active]);
 
         return $this->sendResponse(['is_active' => $member->is_active], 'Team member status updated successfully');
+    }
+
+     private function getStaffLoginUrl(): string
+    {
+        return config('app.frontend_url', 'https://salarynownow.com') . '/login';
     }
 }

@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 
 class VerifyOtpController extends Controller
 {
+
     public function verify(Request $request)
     {
         $request->validate([
