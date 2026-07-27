@@ -16,12 +16,14 @@ class TeamMemberAdded extends Mailable
     public $teamMember;
     public $employer;
     public $password;
+     public $loginUrl;
 
-    public function __construct(User $teamMember, User $employer, string $password)
+    public function __construct(User $teamMember, User $employer, string $password, string $loginUrl)
     {
         $this->teamMember = $teamMember;
         $this->employer = $employer;
         $this->password = $password;
+         $this->loginUrl = $loginUrl;
     }
 
     public function envelope(): Envelope
