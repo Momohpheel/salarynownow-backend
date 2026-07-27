@@ -51,6 +51,9 @@ class VerifyOtpController extends Controller
 
         $token = $user->createToken('staff-token')->plainTextToken;
 
+        $user->load('role');
+
+
         return $this->sendResponse([
             'user' => $user,
             'token' => $token,

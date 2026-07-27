@@ -52,6 +52,8 @@ class VerifyOtpController extends Controller
 
         $user->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
 
+        $user->load('role');
+
         return $this->sendResponse([
             'user' => $user,
             'token' => $token,
