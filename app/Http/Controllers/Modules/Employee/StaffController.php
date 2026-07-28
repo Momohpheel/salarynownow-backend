@@ -307,7 +307,7 @@ class StaffController extends Controller
         $rowNumber = 1;
         foreach ($rows as $data) {
             $rowNumber++;
-            if (count(array_filter($data, fn ($value) => trim((string) $value) !== '')) === 0) {
+            if (count(array_filter($data->toArray(), fn ($value) => trim((string) $value) !== '')) === 0) {
                 continue;
             }
 
@@ -397,8 +397,8 @@ class StaffController extends Controller
 
         $supportedFormats = [
             'd/m/Y',
-            'd-m-Y',
             'Y-m-d',
+            'd-m-Y',
             'Y/m/d',
             'd.m.Y',
             'Y.m.d',
