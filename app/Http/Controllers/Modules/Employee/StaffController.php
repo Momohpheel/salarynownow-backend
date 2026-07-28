@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
 
 class StaffController extends Controller
 {
@@ -248,17 +249,16 @@ class StaffController extends Controller
         $employer = User::find($employerId);
 
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xls,xlsx', 'max:2048'],
         ]);
 
-        $file = $request->file('file');
-        $handle = fopen($file->getPathname(), 'r');
-        
-        $header = fgetcsv($handle);
-        if ($header === false) {
-            fclose($handle);
-            return $this->sendError('The uploaded CSV file is empty.', null, 422);
+        $collection = Excel::toCollection(new \stdClass(), $request->file('file'));
+
+        if ($collection->isEmpty() || $collection->first()->isEmpty()) {
+            return $this->sendError('The uploaded file is empty.', null, 422);
         }
+
+        $header = $collection->first()->first()->toArray();
 
         $normalizedHeader = array_map(function ($column) {
             return strtolower(trim((string) $column));
@@ -286,9 +286,9 @@ class StaffController extends Controller
 
         $missingColumns = array_diff($requiredColumns, $normalizedHeader);
         if (! empty($missingColumns)) {
-            fclose($handle);
+    
             return $this->sendError(
-                'CSV header is invalid.',
+                'Header is invalid.',
                 ['missing_columns' => array_values($missingColumns)],
                 422
             );
@@ -303,8 +303,9 @@ class StaffController extends Controller
             'errors' => [],
         ];
 
+        $rows = $collection->first()->slice(1);
         $rowNumber = 1;
-        while (($data = fgetcsv($handle)) !== false) {
+        foreach ($rows as $data) {
             $rowNumber++;
             if (count(array_filter($data, fn ($value) => trim((string) $value) !== '')) === 0) {
                 continue;
@@ -381,7 +382,7 @@ class StaffController extends Controller
             $summary['successful_uploads']++;
         }
         
-        fclose($handle);
+
 
         return $this->sendResponse($summary, "Bulk upload process completed.");
     }
