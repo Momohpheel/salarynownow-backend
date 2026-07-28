@@ -13,6 +13,7 @@ return [
     |
     */
 
+    'frontend_url' => env('FRONTEND_URL', 'https://salarynownow.com'),
     'name' => env('APP_NAME', 'Laravel'),
 
     /*
