@@ -139,10 +139,9 @@ class EmployeeController extends Controller
             $employee->update(['is_approved' => true, 'status' => 'approved']);
 
             // Create wallet for the employee with virtual account details
-            Wallet::firstOrCreate([
+            Wallet::updateOrCreate([
                 'user_id' => $employee->id,
             ], [
-                'balance' => 0.00,
                 'currency' => 'NGN',
                 'account_number' => $accountData->account_number,
                 'account_name' => $accountData->account_name,
