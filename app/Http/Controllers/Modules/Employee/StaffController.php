@@ -449,6 +449,7 @@ class StaffController extends Controller
     private function validateRow(array $data): array
     {
         $validator = Validator::make($data, [
+            'account_number' => ['required', 'digits:10'],
             'gross_salary' => ['required', 'numeric', 'min:0'],
             'net_salary' => ['required', 'numeric', 'min:0', function ($attribute, $value, $fail) use ($data) {
                 if (isset($data['gross_salary']) && $value > $data['gross_salary']) {
