@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\StaffAdded;
 use App\Mail\StaffInvitation;
 use App\Models\User;
+use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -18,6 +19,13 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class StaffController extends Controller
 {
+    protected $sarepayService;
+
+    public function __construct(SarepayService $sarepayService)
+    {
+        $this->sarepayService = $sarepayService;
+    }
+
     public function store(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
@@ -297,6 +305,11 @@ class StaffController extends Controller
 
         $columnIndexes = array_flip($normalizedHeader);
         
+        $banks = $this->sarepayService->getBanks();
+        $bankNames = collect($banks)->pluck('name')->map(function ($name) {
+            return $this->normalizeBankName($name);
+        })->toArray();
+
         $summary = [
             'total_records' => 0,
             'successful_uploads' => 0,
@@ -317,6 +330,15 @@ class StaffController extends Controller
             $rowData = [];
             foreach ($columnIndexes as $column => $index) {
                 $rowData[$column] = trim((string) ($data[$index] ?? ''));
+            }
+
+            if (!in_array($this->normalizeBankName($rowData['bank_name']), $bankNames)) {
+                $summary['failed_uploads']++;
+                $summary['errors'][] = [
+                    'row' => $rowNumber,
+                    'errors' => ['bank_name' => 'The provided bank name does not exist.'],
+                ];
+                continue;
             }
 
             $errors = $this->validateRow($rowData);
@@ -461,5 +483,10 @@ class StaffController extends Controller
     private function getStaffLoginUrl(): string
     {
         return config('app.frontend_url', 'https://salarynownow.com') . '/login';
+    }
+
+    private function normalizeBankName(string $bankName): string
+    {
+        return strtolower(trim(preg_replace('/\s+/', ' ', $bankName)));
     }
 }
