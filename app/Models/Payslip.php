@@ -25,6 +25,8 @@ class Payslip extends Model
         'nhf',
         'other_deductions',
         'deduction_type',
+        'bonus_amount',
+        'bonus_type',
         'net_salary',
         'status',
     ];
