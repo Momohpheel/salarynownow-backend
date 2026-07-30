@@ -48,10 +48,10 @@ class RequeryTransactions extends Command
             try {
                 $response = $this->sarepayService->verifyTransfer($transaction->reference);
 
-                if ($response && isset($response->status)) {
+                if ($response && isset($response->data->status)) {
                     // Update status based on Sarepay response
                     // Assuming 'success' means disbursed
-                    if (strtolower($response->status) === 'success' || strtolower($response->status) === 'completed') {
+                    if (strtolower($response->data->status) === 'success' || strtolower($response->data->status) === 'completed') {
                         $transaction->update(['status' => Transaction::STATUS_SUCCESS]);
                         
                         // Update related payslip
