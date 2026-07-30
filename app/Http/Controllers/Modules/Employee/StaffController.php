@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
 class StaffController extends Controller
@@ -26,7 +27,7 @@ class StaffController extends Controller
             // Personal Information
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->where(fn ($query) => $query->where('type', User::TYPE_STAFF))],
             'phone_number' => ['required', 'string', 'max:20'],
             'job_title' => ['required', 'string', 'max:255'],
             'department' => ['required', 'string', 'max:255'],
@@ -172,7 +173,7 @@ class StaffController extends Controller
         $request->validate([
             'first_name' => ['sometimes', 'string', 'max:255'],
             'last_name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class.',email,'.$staff->id],
+            'email' => ['sometimes', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)->where(fn ($query) => $query->where('type', User::TYPE_STAFF))->ignore($staff->id)],
             'phone_number' => ['sometimes', 'string', 'max:20'],
             'job_title' => ['sometimes', 'string', 'max:255'],
             'department' => ['sometimes', 'string', 'max:255'],
@@ -329,11 +330,11 @@ class StaffController extends Controller
                 continue;
             }
 
-            if (User::where('email', $rowData['email'])->exists()) {
+            if (User::where('email', $rowData['email'])->where('type', User::TYPE_STAFF)->exists()) {
                 $summary['failed_uploads']++;
                 $summary['errors'][] = [
                     'row' => $rowNumber,
-                    'errors' => ['email' => 'A user with this email already exists.'],
+                    'errors' => ['email' => 'A staff with this email already exists.'],
                 ];
                 continue;
             }
