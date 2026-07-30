@@ -130,7 +130,7 @@ class PayrollController extends Controller
             'pay_date' => 'required|date',
             'staff_data' => 'required|array', // Array of objects with staff_id and deductions
             'staff_data.*.id' => 'required|exists:users,id',
-            'staff_data.*.deductions' => ['nullable', 'numeric', 'min:0'],
+            'staff_data.*.deduction_amount' => ['nullable', 'numeric', 'min:0'],
             'staff_data.*.deduction_type' => ['nullable', 'string'],
             'staff_data.*.bonus_type' => ['nullable', 'string'],
             'staff_data.*.bonus_amount' => ['nullable', 'numeric', 'min:0'],
@@ -169,7 +169,7 @@ class PayrollController extends Controller
                 $pensionER = $staff->salary * ($staff->pension_employer_rate / 100);
                 $tax = $staff->tax_deduction ?? 0;
                 $nhf = $staff->nhf ?? 0;
-                $deductions = $item['deductions'] ?? 0;
+                $deductions = $item['deduction_amount'] ?? 0;
                 $bonus = $item['bonus_amount'] ?? 0;
                 $netPay = $staff->salary - $pensionEE - $tax - $nhf - $deductions + $bonus;
 
