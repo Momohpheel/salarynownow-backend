@@ -98,7 +98,7 @@ class ProcessPayroll extends Command
                         'payslip_id' => $payslip->id,
                         'reference' => $reference,
                         'amount' => $payslip->net_salary,
-                        'status' => Transaction::STATUS_SUCCESS,
+                        'status' => strtolower($response->data->status),
                         'metadata' => (array) $response,
                     ]);
 

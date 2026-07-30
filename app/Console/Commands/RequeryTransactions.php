@@ -32,7 +32,10 @@ class RequeryTransactions extends Command
     {
         $this->info('Checking for processing transactions...');
 
-        $transactions = Transaction::where('status', Transaction::STATUS_PROCESSING)->get();
+        $transactions = Transaction::whereIn('status', [
+                Payroll::STATUS_PENDING,
+                Payroll::STATUS_PROCESSING,
+            ])->get();
 
         if ($transactions->isEmpty()) {
             $this->info('No transactions in processing state.');
@@ -48,7 +51,7 @@ class RequeryTransactions extends Command
                 if ($response && isset($response->status)) {
                     // Update status based on Sarepay response
                     // Assuming 'success' means disbursed
-                    if ($response->status === 'success' || $response->status === 'completed') {
+                    if (strtolower($response->status) === 'success' || strtolower($response->status) === 'completed') {
                         $transaction->update(['status' => Transaction::STATUS_SUCCESS]);
                         
                         // Update related payslip
@@ -67,6 +70,30 @@ class RequeryTransactions extends Command
                         ]);
                         
                         $transaction->payslip->update(['status' => Payslip::STATUS_FAILED]);
+
+                        $employer = $transaction->payslip->payroll->user;
+                        $employerWallet = $employer->wallet;
+
+                        if ($employerWallet) {
+                            $balanceBefore = (float) $employerWallet->balance;
+                            $employerWallet->increment('balance', $transaction->amount);
+                            $employerWallet->refresh();
+
+                            $employerWallet->logs()->create([
+                                'amount' => $transaction->amount,
+                                'type' => 'credit',
+                                'description' => "Refund for failed transaction: {$transaction->reference}",
+                                'balance_before' => $balanceBefore,
+                                'balance_after' => (float) $employerWallet->balance,
+                                'metadata' => [
+                                    'transaction_id' => $transaction->id,
+                                    'payslip_id' => $transaction->payslip_id,
+                                    'payroll_id' => $transaction->payroll_id,
+                                ],
+                            ]);
+
+                            $this->info("Refunded {$transaction->amount} to employer {$employer->name}.");
+                        }
                         
                         $this->error("Transaction {$transaction->reference} marked as FAILED.");
                     }
