@@ -73,6 +73,12 @@
                 <td>Gross Salary</td>
                 <td>{{ number_format($payslip->gross_salary, 2) }}</td>
             </tr>
+            @if($payslip->bonus_amount > 0)
+            <tr>
+                <td>Bonus ({{ $payslip->bonus_type }})</td>
+                <td>{{ number_format($payslip->bonus_amount, 2) }}</td>
+            </tr>
+            @endif
             <tr>
                 <td colspan="2"><strong>Deductions:</strong></td>
             </tr>

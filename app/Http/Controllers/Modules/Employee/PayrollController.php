@@ -71,6 +71,7 @@ class PayrollController extends Controller
                 'pension_er' => '₦' . number_format($pensionER, 2),
                 'tax' => '₦' . number_format($tax, 2),
                 'nhf' => '₦' . number_format($nhf, 2),
+                'bonus' => '₦' . number_format(0, 2),
                 'advance_ded' => 'NO',
                 'net_pay' => '₦' . number_format($netPay, 2),
                 'raw_net' => $netPay,
@@ -131,6 +132,8 @@ class PayrollController extends Controller
             'staff_data.*.id' => 'required|exists:users,id',
             'staff_data.*.deductions' => ['nullable', 'numeric', 'min:0'],
             'staff_data.*.deduction_type' => ['nullable', 'string'],
+            'staff_data.*.bonus_type' => ['nullable', 'string'],
+            'staff_data.*.bonus_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $employerId = $request->user()->getEmployerId();
@@ -167,7 +170,8 @@ class PayrollController extends Controller
                 $tax = $staff->tax_deduction ?? 0;
                 $nhf = $staff->nhf ?? 0;
                 $deductions = $item['deductions'] ?? 0;
-                $netPay = $staff->salary - $pensionEE - $tax - $nhf - $deductions;
+                $bonus = $item['bonus_amount'] ?? 0;
+                $netPay = $staff->salary - $pensionEE - $tax - $nhf - $deductions + $bonus;
 
                 $payslip = Payslip::create([
                     'reference' => $this->generatePayslipReference(),
@@ -181,6 +185,8 @@ class PayrollController extends Controller
                     'nhf' => $nhf,
                     'other_deductions' => $deductions,
                     'deduction_type' => $item['deduction_type'] ?? null,
+                    'bonus_type' => $item['bonus_type'] ?? null,
+                    'bonus_amount' => $bonus,
                     'net_salary' => $netPay,
                     'status' => Payslip::STATUS_PENDING,
                 ]);
@@ -307,6 +313,8 @@ class PayrollController extends Controller
                         'nhf' => '₦' . number_format($p->nhf, 2),
                         'deductions' => $p->other_deductions > 0 ? '₦' . number_format($p->other_deductions, 2) : 'NO',
                         'deduction_type' => $p->deduction_type,
+                        'bonus_amount' => $p->bonus_amount > 0 ? '₦' . number_format($p->bonus_amount, 2) : 'NO',
+                        'bonus_type' => $p->bonus_type,
                         'advance_ded' => 'NO', // Placeholder for advance deduction logic
                         'net_pay' => '₦' . number_format($p->net_salary, 2),
                         'status' => $p->status,
