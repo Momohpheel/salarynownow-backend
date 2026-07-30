@@ -52,7 +52,7 @@ class RequeryTransactions extends Command
                 if ($response && isset($response->data->status)) {
                     // Update status based on Sarepay response
                     // Assuming 'success' means disbursed
-                    if (strtolower($response->data->status) === 'success' || strtolower($response->data->status) === 'completed') {
+                    if (strtolower($response->data->status) === 'Successful' || strtolower($response->data->status) === 'completed') {
                         $transaction->update(['status' => Transaction::STATUS_SUCCESS]);
                         
                         // Update related payslip
@@ -64,10 +64,10 @@ class RequeryTransactions extends Command
                         }
                         
                         $this->info("Transaction {$transaction->reference} marked as SUCCESS.");
-                    } elseif ($response->status === 'failed') {
+                    } elseif (strtolower($response->data->status) === 'failed') {
                         $transaction->update([
                             'status' => Transaction::STATUS_FAILED,
-                            'response_message' => $response->message ?? 'Transaction failed'
+                            'response_message' => $response->data->failure_reason ?? $response->message ?? 'Transaction failed'
                         ]);
                         
                         $transaction->payslip->update(['status' => Payslip::STATUS_FAILED]);
