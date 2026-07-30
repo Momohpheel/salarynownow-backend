@@ -47,6 +47,7 @@ class RequeryTransactions extends Command
 
             try {
                 $response = $this->sarepayService->verifyTransfer($transaction->reference);
+                \Illuminate\Support\Facades\Log::info('Sarepay verifyTransfer response: ' . json_encode($response));
 
                 if ($response && isset($response->data->status)) {
                     // Update status based on Sarepay response
