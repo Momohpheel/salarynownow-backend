@@ -165,8 +165,10 @@ class PayrollController extends Controller
                 $staff = User::find($item['id']);
                 if ($staff->parent_id !== $employer->id) continue;
 
-                $pensionEE = $staff->salary * ($staff->pension_employee_rate / 100);
-                $pensionER = $staff->salary * ($staff->pension_employer_rate / 100);
+                $pensionEE = 0;
+                //$staff->salary * ($staff->pension_employee_rate / 100);
+                $pensionER = 0;
+                //$staff->salary * ($staff->pension_employer_rate / 100);
                 $tax = $staff->tax_deduction ?? 0;
                 $nhf = $staff->nhf ?? 0;
                 $deductions = $item['deduction_amount'] ?? 0;
