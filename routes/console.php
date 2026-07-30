@@ -10,4 +10,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('app:process-payroll')->everyMinute();
-Schedule::command('app:requery-transactions')->everyMinutes();
+Schedule::command('app:requery-transactions')->everyMinute();
