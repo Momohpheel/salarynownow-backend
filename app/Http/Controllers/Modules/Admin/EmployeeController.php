@@ -42,10 +42,10 @@ class EmployeeController extends Controller
 
             return [
                 'id' => $user->id,
-                'company_name' => $user->company_name ?? '—',
-                'rc_number' => $user->rc_number ?? '—',
+                'company_name' => $user->company_name ?? $user->name,
+                'rc_number' => $user->rc_number ?? 'nil',
                 'staff' => $staffCount,
-                'last_payroll' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 0) : '—',
+                'last_payroll' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 0) : '0',
                 'kyb_status' => $user->is_approved ? 'Approved' : ucfirst($user->status),
                 'joined' => $user->created_at->format('d M Y'),
             ];
@@ -60,6 +60,22 @@ class EmployeeController extends Controller
     public function kybReviews(Request $request)
     {
         $admin = $request->user();
+
+        $pendingCount = User::where('type', User::TYPE_EMPLOYEE)
+            ->where('parent_id', $admin->id)
+            ->where('is_approved', false)->where('status', 'pending')
+            ->count();
+
+        $approvedCount = User::where('type', User::TYPE_EMPLOYEE)
+            ->where('parent_id', $admin->id)
+            ->where('is_approved', true)
+            ->count();
+
+        $rejectedCount = User::where('type', User::TYPE_EMPLOYEE)
+            ->where('parent_id', $admin->id)
+            ->where('status', 'rejected')
+            ->count();
+
         $status = $request->query('status', 'pending'); // pending, approved, rejected
 
         $query = User::where('type', User::TYPE_EMPLOYEE)
@@ -81,25 +97,34 @@ class EmployeeController extends Controller
             return [
                 'id' => $user->id,
                 'company' => [
-                    'name' => $user->company_name ?? '—',
-                    'industry' => $user->industry ?? '—',
+                    'name' => $user->company_name ?? $user->name,
+                    'industry' => $user->industry ?? 'nil',
                 ],
-                'cac_no' => $user->rc_number ?? '—',
+                'cac_no' => $user->rc_number ?? 'nil',
                 'documents' => [
                     'cac_certificate' => $user->cac_certificate_url,
                     'director_id' => $user->director_id_url,
                     'utility_bill' => $user->utility_bill_url,
                 ],
                 'type' => 'Company',
-                'industry' => $user->industry ?? '—',
-                'state' => $user->state_of_origin ?? '—',
+                'industry' => $user->industry ?? 'nil',
+                'state' => $user->state_of_origin ?? 'Nigeria',
                 'submitted' => $user->created_at->format('d M Y'),
                 'staff' => $staffCount,
                 'status' => $user->is_approved ? 'Approved' : ucfirst($user->status),
             ];
         });
 
-        return $this->sendResponse($reviews, 'KYB reviews retrieved successfully');
+        $data = [
+            'counts' => [
+                'pending' => $pendingCount,
+                'approved' => $approvedCount,
+                'rejected' => $rejectedCount,
+            ],
+            'reviews' => $reviews,
+        ];
+
+        return $this->sendResponse($data, 'KYB reviews retrieved successfully');
     }
 
     public function show(Request $request, User $employee)
