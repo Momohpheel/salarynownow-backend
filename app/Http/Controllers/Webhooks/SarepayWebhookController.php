@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\WalletInflow;
 use App\Models\Wallet;
 use App\Models\WalletLog;
+use App\Models\Charge;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -91,10 +92,23 @@ class SarepayWebhookController extends Controller
         try{
             // 4. Update wallet balance and log the transaction
             $result = DB::transaction(function () use ($wallet, $amount, $transactionReference, $data) {
+                $charge = Charge::where('name', 'wallet-top-up')->first();
+                $chargeAmount = 0;
+                if ($charge) {
+                    if ($charge->type === 'percentage') {
+                        $chargeAmount = ($amount * $charge->amount) / 100;
+                        if ($charge->cap && $chargeAmount > $charge->cap) {
+                            $chargeAmount = $charge->cap;
+                        }
+                    }
+                }
+
+                $netAmount = $amount - $chargeAmount;
+
                 $balanceBefore = $wallet->balance;
                 
                 // Credit the wallet
-                $wallet->increment('balance', $amount);
+                $wallet->increment('balance', $netAmount);
                 
                 // Log the transaction
                 $walletLog = $wallet->logs()->create([
@@ -108,6 +122,8 @@ class SarepayWebhookController extends Controller
                         'provider' => 'Sarepay',
                         'sender_name' => $data['sender']['originatorName'] ?? 'Unknown',
                         'sender_bank' => $data['sender']['originatorBank'] ?? 'Unknown',
+                        'charge_amount' => $chargeAmount,
+                        'net_amount' => $netAmount,
                     ]
                 ]);
 

@@ -18,6 +18,12 @@ use App\Http\Controllers\Modules\Admin\DashboardController as AdminDashboardCont
 use App\Http\Controllers\Modules\Admin\EmployeeController as AdminEmployeeController;
 use App\Http\Controllers\Modules\Admin\OperationsController as AdminOperationsController;
 use App\Http\Controllers\Modules\Admin\StaffController as AdminStaffController;
+use App\Http\Controllers\Modules\Admin\CompanyController as AdminCompanyController;
+use App\Http\Controllers\Modules\Admin\WalletController as AdminWalletController;
+use App\Http\Controllers\Modules\Admin\ChargeController as AdminChargeController;
+use App\Http\Controllers\Modules\Admin\TransactionController as AdminTransactionController;
+use App\Http\Controllers\Modules\Admin\TeamController as AdminTeamController;
+use App\Http\Controllers\Modules\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
@@ -102,6 +108,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/wallets', [AdminOperationsController::class, 'wallets']);
         Route::get('/payrolls', [AdminOperationsController::class, 'payrolls']);
         Route::get('/staff', [AdminStaffController::class, 'index']);
+        Route::get('/companies', [AdminCompanyController::class, 'index']);
+        Route::get('/companies/{company}', [AdminCompanyController::class, 'show']);
+        Route::post('/companies/{company}/deactivate', [AdminCompanyController::class, 'deactivate']);
+        Route::post('/companies/{company}/wallet/credit', [AdminWalletController::class, 'credit']);
+        Route::post('/companies/{company}/wallet/debit', [AdminWalletController::class, 'debit']);
+        Route::get('/charges', [AdminChargeController::class, 'index']);
+        Route::post('/charges', [AdminChargeController::class, 'store']);
+        Route::post('/transactions/{transaction}/requery', [AdminTransactionController::class, 'requeryTransaction']);
+        Route::apiResource('/team', AdminTeamController::class);
+        Route::get('/settings', [AdminSettingsController::class, 'index']);
+        Route::post('/settings', [AdminSettingsController::class, 'store']);
     });
 
     // Staff Protected Routes

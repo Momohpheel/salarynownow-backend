@@ -10,6 +10,7 @@ use App\Mail\PayslipMail;
 use App\Mail\PayrollCompleted;
 use App\Models\Payroll;
 use App\Models\Payslip;
+use App\Models\Charge;
 use App\Models\Transaction;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Support\Facades\Mail;
@@ -47,6 +48,8 @@ class ProcessPayroll extends Command
             return;
         }
 
+        $disbursementCharge = Charge::where('name', 'disbursement')->first();
+
         foreach ($payrolls as $payroll) {
             $this->info("Processing payroll ID: {$payroll->id} for employer: {$payroll->user->name}");
             
@@ -71,9 +74,16 @@ class ProcessPayroll extends Command
                         throw new \Exception("Employer wallet not found.");
                     }
 
-                    if ($availableBalance < (float) $payslip->net_salary) {
-                        $this->error("Insufficient employer wallet balance for {$payroll->user->name}");
-                        throw new \Exception("Insufficient employer wallet balance for this transaction.");
+                    $chargeAmount = 0;
+                    if ($disbursementCharge && $disbursementCharge->type === 'fixed') {
+                        $chargeAmount = $disbursementCharge->amount;
+                    }
+
+                    $totalDeduction = $payslip->net_salary + $chargeAmount;
+
+                    if ($availableBalance < $totalDeduction) {
+                        $this->error("Insufficient employer wallet balance for {$payroll->user->name} to cover salary and charges");
+                        throw new \Exception("Insufficient employer wallet balance for this transaction and charges.");
                     }
 
                     $bankCode = $this->resolveBankCode($staff->bank_name, $bankCodeLookup);
@@ -103,7 +113,7 @@ class ProcessPayroll extends Command
                     ]);
 
                     $balanceBefore = (float) $employerWallet->balance;
-                    $employerWallet->decrement('balance', $payslip->net_salary);
+                    $employerWallet->decrement('balance', $totalDeduction);
                     $employerWallet->refresh();
 
                     $employerWallet->logs()->create([
@@ -116,6 +126,7 @@ class ProcessPayroll extends Command
                             'payroll_id' => $payroll->id,
                             'payslip_id' => $payslip->id,
                             'transaction_reference' => $reference,
+                            'charge_amount' => $chargeAmount,
                         ],
                     ]);
 
