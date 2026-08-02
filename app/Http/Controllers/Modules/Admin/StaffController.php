@@ -77,7 +77,7 @@ class StaffController extends Controller
                         'name' => $member->name,
                         'email' => $member->email,
                     ],
-                    'company' => $member->parent->company_name ?? '—',
+                    'company' => $member->parent ?? '—',
                     'role' => $member->job_title ?? '—',
                     'compensation' => $member->salary ? '₦' . number_format($member->salary, 2) : '—',
                     'bank_pension' => [
