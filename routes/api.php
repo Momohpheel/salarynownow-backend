@@ -101,6 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/employees/{employee}/approve', [AdminEmployeeController::class, 'approve']);
         Route::post('/employees/{employee}/reject', [AdminEmployeeController::class, 'reject']);
         Route::post('/employees/{employee}/create-default-role', [AdminEmployeeController::class, 'createDefaultRole']);
+        Route::post('/employees/{employee}/regenerate-virtual-account', [AdminEmployeeController::class, 'regenerateVirtualAccount']);
         Route::get('/advances', [AdminOperationsController::class, 'advances']);
         Route::get('/audit-log', [AdminOperationsController::class, 'auditLog']);
         Route::get('/audit-log/export', [AdminOperationsController::class, 'exportAuditLog']);

@@ -233,4 +233,31 @@ class EmployeeController extends Controller
 
         return $this->sendResponse($employee, 'Default admin role created successfully.');
     }
+
+    public function regenerateVirtualAccount(Request $request, User $employee)
+    {
+        $admin = $request->user();
+
+        // Ensure the employee belongs to this merchant
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
+            return $this->sendError('Employee not found or unauthorized', null, 404);
+        }
+
+        // Call Sarepay to create virtual account
+        $sarepayResponse = $this->sarepayService->createAccount($employee);
+
+        $accountData = $sarepayResponse;
+
+        Wallet::updateOrCreate([
+            'user_id' => $employee->id,
+        ], [
+            'currency' => 'NGN',
+            'account_number' => $accountData->account_number,
+            'account_name' => $accountData->account_name,
+            'account_reference' => $accountData->account_reference,
+            'bank_name' => $accountData->bank_name,
+        ]);
+
+        return $this->sendResponse($employee->fresh('wallet'), 'Virtual account regenerated successfully.');
+    }
 }

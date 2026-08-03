@@ -162,6 +162,8 @@ class SarepayService{
         $nameParts = preg_split('/\s+/', $fullName, 3, PREG_SPLIT_NO_EMPTY) ?: [];
         [$splitFirstName, $splitLastName, $splitOtherName] = array_pad($nameParts, 3, null);
 
+  
+   
         $accountDto = [
             "customer_reference" => $customerReference,
             "first_name" => $isModel ? ($data->first_name ?? $splitFirstName ) : ($data['first_name'] ?? $splitFirstName),
@@ -174,14 +176,14 @@ class SarepayService{
             // "marital_status" => $isModel ? "SINGLE" : ($data['marital_status'] ?? "SINGLE"),
             // "address" => $isModel ? ($data->company_address ?? "Test Address") : ($data['company_address'] ?? "Test Address"),
             //"email" => $isModel ? $data->email : ($data['email'] ?? null),
-            //"business_name" => $isModel ? ($data->company_name ?? "Test Business") : ($data['company_name'] ?? "Test Business"),
+            "business_name" => $isModel ? ($data->company_name) : ($data['company_name']),
             "bvn" => $isModel ? $data->bvn : ($data['bvn'] ?? null),
             "phone_number" => $isModel ? $data->phone_number : ($data['phone_number'] ?? null),
             "business_type" => "Main",
-            //"type" => "Corporate",
-            'type' => "Personal",
-           // "rc_number" => $isModel ? $data->rc_number : ($data['rc_number'] ?? null),
-            //"corporate_account_type" => "COMPANY",
+            "type" => "Corporate",
+            //'type' => "Personal",
+           "rc_number" => $isModel ? $data->rc_number : ($data['rc_number'] ?? null),
+            "corporate_account_type" => "COMPANY",
             "currency" => "NGN",
             "channel" => "Globus",
         ];
