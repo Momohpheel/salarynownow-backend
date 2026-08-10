@@ -988,8 +988,14 @@ class PayrollController extends Controller
         if ((int) $user->id === (int) $employerId) {
             return true;
         }
-        if ($user->hasRole && method_exists($user, 'hasRole')) {
-            return $user->hasRole('admin') || $user->hasRole('finance_manager') || $user->can('approve_flagged_payroll');
+        if ($user->hasRole('admin') || $user->hasRole('finance_manager')) {
+            return true;
+        }
+        try {
+            if ($user->hasPermissionTo('approve_flagged_payroll')) {
+                return true;
+            }
+        } catch (\Throwable $e) {
         }
         return (bool) ($user->is_finance_admin ?? $user->is_admin ?? false);
     }

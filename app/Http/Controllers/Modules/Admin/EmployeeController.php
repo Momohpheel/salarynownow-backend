@@ -267,16 +267,11 @@ class EmployeeController extends Controller
         }
 
         $employee = DB::transaction(function () use ($employee) {
-            $defaultRole = Role::firstOrCreate(
-                [
-                    'employer_id' => $employee->id,
-                    'name' => 'admin',
-                ],
-                [
-                    'description' => 'Default admin role for employer account owner.',
-                    'status' => 'active',
-                ]
-            );
+            $standardRoles = Role::ensureStandardRolesForEmployer((int) $employee->id);
+            $defaultRole = $standardRoles['admin'] ?? null;
+            if (!$defaultRole) {
+                throw new \RuntimeException('Unable to create default admin role.');
+            }
 
             $employee->update([
                 'role_id' => $defaultRole->id,
@@ -285,7 +280,7 @@ class EmployeeController extends Controller
             return $employee->fresh('role');
         });
 
-        return $this->sendResponse($employee, 'Default admin role created successfully.');
+        return $this->sendResponse($employee, 'Default roles + permissions created successfully.');
     }
 
     public function regenerateVirtualAccount(Request $request, User $employee)

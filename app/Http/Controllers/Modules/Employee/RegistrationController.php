@@ -60,20 +60,13 @@ class RegistrationController extends Controller
                 'parent_id' => $merchantId, // Assigned under a merchant using slug lookup
             ]);
 
-            $defaultRole = Role::firstOrCreate(
-                [
-                    'employer_id' => $user->id,
-                    'name' => 'admin',
-                ],
-                [
-                    'description' => 'Default admin role for employer account owner.',
-                    'status' => 'active',
-                ]
-            );
-
-            $user->update([
-                'role_id' => $defaultRole->id,
-            ]);
+            $standardRoles = Role::ensureStandardRolesForEmployer((int) $user->id);
+            $ownerRole = $standardRoles['admin'] ?? null;
+            if ($ownerRole) {
+                $user->update([
+                    'role_id' => $ownerRole->id,
+                ]);
+            }
 
             return $user->fresh('role');
         });

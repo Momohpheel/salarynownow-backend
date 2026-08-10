@@ -205,8 +205,40 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class);
     }
 
-    public function hasPermissionTo($permission)
+    public function hasRole($roleName): bool
     {
-        return $this->role->permissions->pluck('name')->contains($permission);
+        if (!$this->relationLoaded('role')) {
+            $this->loadMissing('role');
+        }
+        if (!$this->role) {
+            return false;
+        }
+        return mb_strtolower(trim((string) $this->role->name)) === mb_strtolower(trim((string) $roleName));
+    }
+
+    public function hasPermissionTo($permission): bool
+    {
+        $employerId = $this->getEmployerId();
+        if ((int) $this->id === (int) $employerId) {
+            return true;
+        }
+        if (!$this->relationLoaded('role')) {
+            $this->loadMissing('role.permissions');
+        }
+        if (!$this->role || !$this->role->relationLoaded('permissions')) {
+            try {
+                $this->loadMissing('role.permissions');
+            } catch (\Throwable $e) {
+                return false;
+            }
+        }
+        if (!$this->role) {
+            return false;
+        }
+        $permName = is_string($permission) ? $permission : ($permission->name ?? null);
+        if ($permName === null) {
+            return false;
+        }
+        return $this->role->permissions->pluck('name')->contains($permName);
     }
 }
