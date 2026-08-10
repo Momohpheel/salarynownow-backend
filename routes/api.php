@@ -100,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/employees/{employee}', [AdminEmployeeController::class, 'show']);
         Route::post('/employees/{employee}/approve', [AdminEmployeeController::class, 'approve']);
         Route::post('/employees/{employee}/reject', [AdminEmployeeController::class, 'reject']);
+        Route::post('/employees/{employee}/hold', [AdminEmployeeController::class, 'hold']);
         Route::post('/employees/{employee}/create-default-role', [AdminEmployeeController::class, 'createDefaultRole']);
         Route::post('/employees/{employee}/regenerate-virtual-account', [AdminEmployeeController::class, 'regenerateVirtualAccount']);
         Route::get('/advances', [AdminOperationsController::class, 'advances']);
@@ -118,6 +119,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/charges', [AdminChargeController::class, 'store']);
         Route::post('/transactions/{transaction}/requery', [AdminTransactionController::class, 'requeryTransaction']);
         Route::apiResource('/team', AdminTeamController::class);
+        Route::get('/team/roles', [AdminTeamController::class, 'roles']);
+        Route::post('/team/invite', [AdminTeamController::class, 'invite']);
+        Route::post('/team/deactivate', [AdminTeamController::class, 'deactivate']);
+        Route::post('/team/update-role', [AdminTeamController::class, 'updateRole']);
         Route::get('/settings', [AdminSettingsController::class, 'index']);
         Route::post('/settings', [AdminSettingsController::class, 'store']);
     });

@@ -39,4 +39,9 @@ class Payroll extends Model
     {
         return $this->hasMany(Payslip::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
 }

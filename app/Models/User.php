@@ -168,6 +168,11 @@ class User extends Authenticatable
         return $this->hasOne(Wallet::class);
     }
 
+    public function staff()
+    {
+        return $this->hasMany(User::class, 'parent_id');
+    }
+
     public function payslips()
     {
         return $this->hasMany(Payslip::class);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Modules\Staff;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -10,7 +11,7 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $employer = $user->parent; // The employee/company that added this staff
+        $employer = User::where('id', $user->parent_id)->first(); // The employee/company that added this staff
 
         $data = [
             'greeting' => "Hello, {$user->first_name} 👋",

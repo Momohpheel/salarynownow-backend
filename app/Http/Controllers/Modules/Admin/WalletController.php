@@ -11,6 +11,12 @@ class WalletController extends Controller
 {
     public function credit(Request $request, User $company)
     {
+        $admin = $request->user();
+
+        if ($company->type !== User::TYPE_EMPLOYEE || $company->parent_id !== $admin->id) {
+            return $this->sendError('Company not found or unauthorized', null, 404);
+        }
+
         $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
             'description' => ['required', 'string'],
@@ -55,6 +61,12 @@ class WalletController extends Controller
 
     public function debit(Request $request, User $company)
     {
+        $admin = $request->user();
+
+        if ($company->type !== User::TYPE_EMPLOYEE || $company->parent_id !== $admin->id) {
+            return $this->sendError('Company not found or unauthorized', null, 404);
+        }
+
         $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
             'description' => ['required', 'string'],

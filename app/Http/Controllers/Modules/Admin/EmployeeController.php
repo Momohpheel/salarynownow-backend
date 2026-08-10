@@ -36,20 +36,51 @@ class EmployeeController extends Controller
             });
         }
 
-        $employees = $query->latest()->get()->map(function($user) {
+        $perPage = (int) $request->input('per_page', $request->input('page') ? 15 : 0);
+
+        $transform = function($user) {
             $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
             $lastPayroll = $user->payrolls()->latest()->first();
 
             return [
                 'id' => $user->id,
                 'company_name' => $user->company_name ?? $user->name,
+                'name' => $user->company_name ?? $user->name,
+                'email' => $user->email,
+                'phone_number' => $user->phone_number,
                 'rc_number' => $user->rc_number ?? 'nil',
+                'industry' => $user->industry ?? 'nil',
+                'company_address' => $user->company_address,
                 'staff' => $staffCount,
-                'last_payroll' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 0) : '0',
-                'kyb_status' => $user->is_approved ? 'Approved' : ucfirst($user->status),
+                'last_payroll' => $lastPayroll ? ($lastPayroll->processed_at?->toIso8601String() ?? $lastPayroll->created_at?->toIso8601String()) : null,
+                'kyb_status' => $user->is_approved ? 'approved' : ($user->status ?? 'pending'),
+                'is_approved' => (bool) $user->is_approved,
+                'has_kyb_documents' => (bool) ($user->cac_certificate_path || $user->director_id_path || $user->utility_bill_path),
                 'joined' => $user->created_at->format('d M Y'),
+                'created_at' => $user->created_at?->toIso8601String(),
             ];
-        });
+        };
+
+        if ($perPage > 0) {
+            $paginator = $query->latest()->paginate($perPage);
+            $mapped = collect($paginator->items())->map($transform)->values();
+
+            $pagination = [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ];
+
+            return $this->sendResponse([
+                'items' => $mapped,
+                'pagination' => $pagination,
+            ], 'Companies retrieved successfully');
+        }
+
+        $employees = $query->latest()->get()->map($transform);
 
         return $this->sendResponse($employees, 'Companies retrieved successfully');
     }
@@ -132,13 +163,19 @@ class EmployeeController extends Controller
         $admin = $request->user();
 
         // Ensure the employee belongs to this merchant
-        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->employer_id !== $admin->id) {
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
             return $this->sendError('Employee not found or unauthorized', null, 404);
         }
 
+        $employee->load(['staff', 'payrolls.transactions.payslip.user', 'wallet']);
         $employee->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
 
-        return $this->sendResponse($employee, 'Employee details retrieved');
+        $staff = $employee->getRelation('staff')->filter(function ($u) {
+            return $u->type === User::TYPE_STAFF;
+        })->values();
+        $employee->setRelation('staff', $staff);
+
+        return $this->sendResponse(['company_info' => $employee], 'Employee details retrieved');
     }
 
     public function approve(Request $request, User $employee)
@@ -202,6 +239,23 @@ class EmployeeController extends Controller
         Mail::to($employee->email)->send(new EmployerRejected($employee, $request->reason));
 
         return $this->sendResponse(null, 'Employee KYC rejected successfully.');
+    }
+
+    public function hold(Request $request, User $employee)
+    {
+        $admin = $request->user();
+
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
+            return $this->sendError('Employee not found or unauthorized', null, 404);
+        }
+
+        if ($employee->is_approved) {
+            return $this->sendError('Employee is already approved.', null, 400);
+        }
+
+        $employee->update(['status' => 'under_review']);
+
+        return $this->sendResponse(null, 'Employee KYC placed under review.');
     }
 
     public function createDefaultRole(Request $request, User $employee)
