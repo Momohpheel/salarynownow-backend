@@ -43,9 +43,7 @@ class DeductionType extends Model
     {
         return $query->where(function ($q) use ($employerId) {
             $q->where('user_id', $employerId)
-                ->orWhere(function ($sys) {
-                    $sys->where('is_system', true)->where('user_id', 0);
-                });
+                ->orWhere('is_system', true);
         });
     }
 
