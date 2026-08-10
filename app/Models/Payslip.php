@@ -50,4 +50,9 @@ class Payslip extends Model
     {
         return $this->belongsTo(Payroll::class);
     }
+
+    public function deductions()
+    {
+        return $this->hasMany(PayslipDeduction::class);
+    }
 }

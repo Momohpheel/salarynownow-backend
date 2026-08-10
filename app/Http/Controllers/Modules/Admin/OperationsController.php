@@ -242,6 +242,7 @@ class OperationsController extends Controller
     {
         $admin = $request->user();
         $employerIds = $this->getEmployerIds($admin);
+        $allWalletIds = Wallet::whereIn('user_id', $employerIds)->pluck('id');
 
         $walletsQuery = Wallet::with('user:id,name,company_name')
             ->whereIn('user_id', $employerIds);
@@ -254,40 +255,107 @@ class OperationsController extends Controller
             });
         }
 
-        $wallets = $walletsQuery->latest('updated_at')->get();
-        $walletIds = $wallets->pluck('id');
+        $perPage = (int) $request->input('per_page', $request->input('page') ? 10 : 0);
 
-        $recentTransactions = WalletLog::with('wallet.user:id,name,company_name')
-            ->whereIn('wallet_id', $walletIds)
-            ->latest()
-            ->limit(20)
-            ->get();
+        $summaryBuilder = (clone $walletsQuery);
+        $summary = [
+            'active_wallets' => $summaryBuilder->count(),
+            'total_held' => '₦' . number_format($summaryBuilder->sum('balance'), 2),
+        ];
+
+        $transformWallet = function ($wallet) {
+            return [
+                'wallet_id' => $wallet->id,
+                'company' => $wallet->user->company_name ?? $wallet->user->name ?? '—',
+                'company_id' => $wallet->user_id,
+                'balance' => '₦' . number_format($wallet->balance, 2),
+                'balance_raw' => $wallet->balance,
+                'last_updated' => $wallet->updated_at->format('d M Y, H:i'),
+            ];
+        };
+
+        if ($perPage > 0) {
+            $paginator = $walletsQuery->latest('updated_at')->paginate($perPage);
+            $walletBalances = collect($paginator->items())->map($transformWallet)->values();
+            $pagination = [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ];
+        } else {
+            $allWallets = $walletsQuery->latest('updated_at')->get();
+            $walletBalances = $allWallets->map($transformWallet);
+            $pagination = [
+                'current_page' => 1,
+                'per_page' => $allWallets->count(),
+                'total' => $allWallets->count(),
+                'last_page' => 1,
+                'from' => $allWallets->count() ? 1 : null,
+                'to' => $allWallets->count() ? $allWallets->count() : null,
+            ];
+        }
+
+        $txnPerPage = (int) $request->input('txn_per_page', $request->input('txn_page') ? 10 : 0);
+        $txnSearch = $request->input('txn_search');
+
+        $txnQuery = WalletLog::with('wallet.user:id,name,company_name')
+            ->whereIn('wallet_id', $allWalletIds);
+
+        if ($txnSearch) {
+            $txnQuery->where(function ($q) use ($txnSearch) {
+                $q->whereHas('wallet.user', function ($u) use ($txnSearch) {
+                    $u->where('company_name', 'like', "%{$txnSearch}%")
+                        ->orWhere('name', 'like', "%{$txnSearch}%");
+                })->orWhere('type', 'like', "%{$txnSearch}%");
+            });
+        }
+
+        $txnTransform = function ($log) {
+            return [
+                'date' => $log->created_at->format('d M Y'),
+                'company' => $log->wallet->user->company_name ?? $log->wallet->user->name ?? '—',
+                'type' => ucfirst($log->type),
+                'amount' => '₦' . number_format($log->amount, 2),
+                'status' => 'Confirmed',
+                'reference' => $log->metadata['transaction_reference']
+                    ?? $log->metadata['reference']
+                    ?? '-',
+            ];
+        };
+
+        if ($txnPerPage > 0) {
+            $txnPaginator = $txnQuery->latest()->paginate($txnPerPage, ['*'], 'txn_page');
+            $recentTransactions = collect($txnPaginator->items())->map($txnTransform)->values();
+            $txnPagination = [
+                'current_page' => $txnPaginator->currentPage(),
+                'per_page' => $txnPaginator->perPage(),
+                'total' => $txnPaginator->total(),
+                'last_page' => $txnPaginator->lastPage(),
+                'from' => $txnPaginator->firstItem(),
+                'to' => $txnPaginator->lastItem(),
+            ];
+        } else {
+            $allTxns = $txnQuery->latest()->limit(500)->get();
+            $recentTransactions = $allTxns->map($txnTransform);
+            $txnPagination = [
+                'current_page' => 1,
+                'per_page' => $allTxns->count(),
+                'total' => $allTxns->count(),
+                'last_page' => 1,
+                'from' => $allTxns->count() ? 1 : null,
+                'to' => $allTxns->count() ? $allTxns->count() : null,
+            ];
+        }
 
         $data = [
-            'summary' => [
-                'active_wallets' => $wallets->count(),
-                'total_held' => '₦' . number_format($wallets->sum('balance'), 2),
-            ],
-            'wallet_balances' => $wallets->map(function ($wallet) {
-                return [
-                    'wallet_id' => $wallet->id,
-                    'company' => $wallet->user->company_name ?? $wallet->user->name ?? '—',
-                    'balance' => '₦' . number_format($wallet->balance, 2),
-                    'last_updated' => $wallet->updated_at->format('d M Y, H:i'),
-                ];
-            }),
-            'recent_transactions' => $recentTransactions->map(function ($log) {
-                return [
-                    'date' => $log->created_at->format('d M Y'),
-                    'company' => $log->wallet->user->company_name ?? $log->wallet->user->name ?? '—',
-                    'type' => ucfirst($log->type),
-                    'amount' => '₦' . number_format($log->amount, 2),
-                    'status' => 'Confirmed',
-                    'reference' => $log->metadata['transaction_reference']
-                        ?? $log->metadata['reference']
-                        ?? '-',
-                ];
-            }),
+            'summary' => $summary,
+            'wallet_balances' => $walletBalances,
+            'pagination' => $pagination,
+            'recent_transactions' => $recentTransactions,
+            'transactions_pagination' => $txnPagination,
         ];
 
         return $this->sendResponse($data, 'Wallet oversight retrieved successfully');
@@ -315,33 +383,67 @@ class OperationsController extends Controller
             $query->where('status', strtolower($request->status));
         }
 
-        $payrolls = $query->latest('processed_at')->get();
+        $summaryBuilder = (clone $query);
+        $summaryRows = $summaryBuilder->get();
+        $summary = [
+            'payroll_runs' => $summaryRows->count(),
+            'completed' => $summaryRows->where('status', Payroll::STATUS_COMPLETED)->count(),
+            'total_processed' => '₦' . number_format(
+                $summaryRows->where('status', Payroll::STATUS_COMPLETED)->sum('amount'),
+                2
+            ),
+            'people_included' => $summaryRows->sum('staff_count'),
+        ];
+
+        $transformPayroll = function ($payroll) {
+            return [
+                'id' => $payroll->id,
+                'reference' => $payroll->reference,
+                'company' => $payroll->user->company_name ?? $payroll->user->name ?? '—',
+                'company_id' => $payroll->user_id,
+                'run_date' => $payroll->processed_at?->format('d M Y') ?? '—',
+                'pay_period' => $payroll->period_start && $payroll->period_end
+                    ? $payroll->period_start->format('d M') . ' — ' . $payroll->period_end->format('d M Y')
+                    : '—',
+                'staff_count' => $payroll->staff_count,
+                'total_amount' => '₦' . number_format($payroll->amount, 2),
+                'total_amount_raw' => $payroll->amount,
+                'status' => ucfirst($payroll->status),
+                'status_raw' => $payroll->status,
+                'created' => $payroll->created_at->format('d M Y'),
+            ];
+        };
+
+        $perPage = (int) $request->input('per_page', $request->input('page') ? 10 : 0);
+
+        if ($perPage > 0) {
+            $paginator = $query->latest('processed_at')->paginate($perPage);
+            $items = collect($paginator->items())->map($transformPayroll)->values();
+            $pagination = [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ];
+        } else {
+            $allPayrolls = $query->latest('processed_at')->get();
+            $items = $allPayrolls->map($transformPayroll);
+            $pagination = [
+                'current_page' => 1,
+                'per_page' => $allPayrolls->count(),
+                'total' => $allPayrolls->count(),
+                'last_page' => 1,
+                'from' => $allPayrolls->count() ? 1 : null,
+                'to' => $allPayrolls->count() ? $allPayrolls->count() : null,
+            ];
+        }
 
         $data = [
-            'summary' => [
-                'payroll_runs' => $payrolls->count(),
-                'completed' => $payrolls->where('status', Payroll::STATUS_COMPLETED)->count(),
-                'total_processed' => '₦' . number_format(
-                    $payrolls->where('status', Payroll::STATUS_COMPLETED)->sum('amount'),
-                    2
-                ),
-                'people_included' => $payrolls->sum('staff_count'),
-            ],
-            'items' => $payrolls->map(function ($payroll) {
-                return [
-                    'id' => $payroll->id,
-                    'reference' => $payroll->reference,
-                    'company' => $payroll->user->company_name ?? $payroll->user->name ?? '—',
-                    'run_date' => $payroll->processed_at?->format('d M Y') ?? '—',
-                    'pay_period' => $payroll->period_start && $payroll->period_end
-                        ? $payroll->period_start->format('d M') . ' — ' . $payroll->period_end->format('d M Y')
-                        : '—',
-                    'staff_count' => $payroll->staff_count,
-                    'total_amount' => '₦' . number_format($payroll->amount, 2),
-                    'status' => ucfirst($payroll->status),
-                    'created' => $payroll->created_at->format('d M Y'),
-                ];
-            }),
+            'summary' => $summary,
+            'items' => $items,
+            'pagination' => $pagination,
         ];
 
         return $this->sendResponse($data, 'Payroll control data retrieved successfully');

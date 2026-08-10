@@ -4,6 +4,7 @@ use App\Http\Controllers\Modules\Common\BankController as CommonBankController;
 use App\Http\Controllers\Modules\Employee\RegistrationController as EmployeeRegistrationController;
 use App\Http\Controllers\Modules\Employee\LoginController as EmployeeLoginController;
 use App\Http\Controllers\Modules\Employee\DashboardController as EmployeeDashboardController;
+use App\Http\Controllers\Modules\Employee\DeductionTypeController as EmployeeDeductionTypeController;
 use App\Http\Controllers\Modules\Employee\WalletController as EmployeeWalletController;
 use App\Http\Controllers\Modules\Employee\SalaryAdvanceController as EmployeeSalaryAdvanceController;
 use App\Http\Controllers\Modules\Employee\PayrollController as EmployeePayrollController;
@@ -166,6 +167,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/payrolls', [EmployeePayrollController::class, 'store']);
         Route::get('/payrolls/{payroll}', [EmployeePayrollController::class, 'show']);
         Route::get('/payslips/{id}/download', [EmployeePayrollController::class, 'downloadPayslip']);
+        Route::get('/payrolls-sample/download', [EmployeePayrollController::class, 'downloadSample']);
+        Route::post('/payrolls/upload-preview', [EmployeePayrollController::class, 'uploadPreview']);
+        Route::post('/payrolls/upload-commit', [EmployeePayrollController::class, 'uploadCommit']);
+        Route::get('/payrolls-flagged', [EmployeePayrollController::class, 'flaggedRows']);
+        Route::post('/payrolls-flagged/{flag}/approve', [EmployeePayrollController::class, 'approveFlagged']);
+        Route::post('/payrolls-flagged/{flag}/reject', [EmployeePayrollController::class, 'rejectFlagged']);
+
+        // Deduction Types
+        Route::get('/deduction-types', [EmployeeDeductionTypeController::class, 'index']);
+        Route::post('/deduction-types', [EmployeeDeductionTypeController::class, 'store']);
+        Route::match(['put', 'patch'], '/deduction-types/{deductionType}', [EmployeeDeductionTypeController::class, 'update']);
+        Route::delete('/deduction-types/{deductionType}', [EmployeeDeductionTypeController::class, 'destroy']);
+        Route::post('/deduction-types/{deductionType}/toggle', [EmployeeDeductionTypeController::class, 'toggle']);
 
         // Team Management
         Route::get('/team', [EmployeeTeamController::class, 'index']);
