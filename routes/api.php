@@ -141,6 +141,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('employee')->group(function () {
+        Route::middleware('ensure.employer.role')->group(function () {
         Route::post('/complete-profile', [EmployeeRegistrationController::class, 'completeProfile']);
         Route::get('/profile', [EmployerProfileController::class, 'show']);
         Route::post('/profile', [EmployerProfileController::class, 'update']);
@@ -204,5 +205,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'assignRole']);
         Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'updateRole']);
         Route::get('/users/{user}/role', [EmployeeUserRoleController::class, 'getUserRole']);
+        }); // close ensure.employer.role middleware group
     });
 });

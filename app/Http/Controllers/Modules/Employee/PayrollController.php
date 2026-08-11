@@ -222,7 +222,7 @@ class PayrollController extends Controller
         return $this->sendResponse($data, 'Balance check completed');
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ?User $actingUser = null)
     {
         $request->validate([
             'period_start' => 'required|date',
@@ -238,7 +238,11 @@ class PayrollController extends Controller
             'staff_data.*.bonus_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $employerId = $request->user()->getEmployerId();
+        $user = $actingUser ?? $request->user();
+        if (!$user) {
+            return $this->sendError('Unauthenticated.', [], 401);
+        }
+        $employerId = $user->getEmployerId();
         $employer = User::with('wallet')->find($employerId);
         $wallet = $employer->wallet;
 
@@ -287,8 +291,11 @@ class PayrollController extends Controller
                     }
                 }
 
-                $bonus = $item['bonus_amount'] ?? 0;
-                $netPay = $staff->salary - $pensionEE - $tax - $nhf - $deductionTotals + $bonus;
+                $bonus = (float) ($item['bonus_amount'] ?? 0);
+                $grossForCalc = isset($item['gross_salary'])
+                    ? (float) $item['gross_salary']
+                    : (float) $staff->salary;
+                $netPay = $grossForCalc - $pensionEE - $tax - $nhf - $deductionTotals + $bonus;
 
                 $legacyOtherDeductions = 0;
                 foreach ($deductionRows as $row) {
@@ -304,7 +311,7 @@ class PayrollController extends Controller
                     'user_id' => $staff->id,
                     'payroll_id' => $payroll->id,
                     'period' => $payroll->period_start->format('M Y'),
-                    'gross_salary' => $staff->salary,
+                    'gross_salary' => $grossForCalc,
                     'pension_employee' => $pensionEE,
                     'pension_employer' => $pensionER,
                     'tax_deduction' => $tax,
@@ -325,7 +332,7 @@ class PayrollController extends Controller
                         'amount' => (float) ($row['amount'] ?? 0),
                         'is_percentage' => !empty($row['is_percentage']),
                         'percentage_applied' => $row['percentage_value'] ?? null,
-                        'base_amount' => $staff->salary,
+                        'base_amount' => $grossForCalc,
                         'notes' => $row['notes'] ?? null,
                     ]);
                 }
@@ -692,6 +699,7 @@ class PayrollController extends Controller
             $normalized = [
                 'staff_id' => $matchedStaff?->id,
                 'name' => $matchedStaff?->name ?: $name,
+                'employee_name' => $matchedStaff?->name ?: $name,
                 'email' => $matchedStaff?->email ?: $email,
                 'account_name' => $matchedStaff?->account_name ?: $accountName,
                 'account_number' => $matchedStaff?->account_number ?: $accountNumber,
@@ -705,6 +713,7 @@ class PayrollController extends Controller
                 'other_deductions' => $other,
                 'bonus_amount' => $bonus,
                 'net_pay' => max($netComputed, 0),
+                'net_salary' => max($netComputed, 0),
                 'notes' => $notes,
             ];
 
@@ -805,6 +814,7 @@ class PayrollController extends Controller
                 }
                 return [
                     'id' => $row['staff_id'],
+                    'gross_salary' => $row['gross_salary'] ?? 0,
                     'deductions' => $deductions,
                     'bonus_amount' => $row['bonus_amount'] ?? 0,
                     'bonus_type' => null,
@@ -812,7 +822,7 @@ class PayrollController extends Controller
             })->all(),
         ]);
 
-        $response = $this->store($payrollRequest);
+        $response = $this->store($payrollRequest, $request->user());
 
         $payload = $response->getData(true);
         $payrollId = $payload['data']['id'] ?? null;
