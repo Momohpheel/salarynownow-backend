@@ -17,8 +17,10 @@ class ResendOtpController extends Controller
             'email' => ['required', 'string', 'email'],
         ]);
 
-        $user = User::staff()->where('email', $request->email)->first();
-
+        //$user = User::staff()->where('email', $request->email)->first();
+ $user = User::where('type', User::TYPE_STAFF)
+            ->where('email', $request->email)
+            ->first();
         if (! $user) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.failed')],
