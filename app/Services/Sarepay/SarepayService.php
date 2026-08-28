@@ -75,6 +75,41 @@ class SarepayService{
         return $result;
     }
 
+    /**
+     * Strip leading "RC-" / "RC" / "rc-" / "rc" prefix and any non-digit characters
+     * (hyphens, spaces, underscores) from an RC/CAC number before sending it to
+     * Sarepay. Returns only the numeric portion, or null if nothing numeric remains.
+     *
+     * Examples:
+     *   "RC-123456"  => "123456"
+     *   "RC 0023456" => "0023456"
+     *   "rc-98765"   => "98765"
+     *   "RC123"      => "123"
+     *   "  -RC-654- " => "654"
+     *   null / ""    => null
+     *
+     * @param mixed $value
+     * @return string|null
+     */
+    private function sanitizeRcNumber($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim((string) $value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        // 1) Strip a leading "RC" or "rc" token, optionally followed by hyphen / space / underscore
+        $withoutPrefix = preg_replace('/^\s*(?:RC|rc)[\s\-_]*/', '', $trimmed);
+        // 2) Remove any remaining non-digit characters (hyphens, spaces, dots, slashes etc.)
+        $digitsOnly = preg_replace('/\D+/', '', (string) $withoutPrefix);
+
+        return $digitsOnly === '' ? null : $digitsOnly;
+    }
+
     public function checkoutInit (
         $amount, object $customer, string $reference
     )
@@ -182,7 +217,7 @@ class SarepayService{
             "business_type" => "Main",
             "type" => "Corporate",
             //'type' => "Personal",
-           "rc_number" => $isModel ? $data->rc_number : ($data['rc_number'] ?? null),
+           "rc_number" => $this->sanitizeRcNumber($isModel ? ($data->rc_number ?? null) : ($data['rc_number'] ?? null)),
             "corporate_account_type" => "COMPANY",
             "currency" => "NGN",
             "channel" => "Globus",
@@ -222,7 +257,7 @@ class SarepayService{
             'type' => "Corporate",
             'dob' =>  $data['dob'],
             "business_type" => "Main",
-            "rc_number" =>  $data['rc_number'] ?? null,
+            "rc_number" =>  $this->sanitizeRcNumber($data['rc_number'] ?? null),
             "currency" => "NGN",
             "phone_number" => $data["phone"]
         ];
