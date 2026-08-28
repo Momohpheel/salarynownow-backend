@@ -192,10 +192,10 @@ class EmployeeController extends Controller
         // Only create a fresh virtual account when the company was NOT approved yet.
         // If already approved, skip Sarepay account creation and reuse the existing wallet.
         $accountData = null;
-        if (!$wasApproved) {
-            $sarepayResponse = $this->sarepayService->createAccount($employee);
-            $accountData = $sarepayResponse;
-        }
+        //if (!$wasApproved) {
+        $sarepayResponse = $this->sarepayService->createAccount($employee);
+        $accountData = $sarepayResponse;
+       // }
 
         DB::transaction(function () use ($employee, $accountData) {
             $employee->update(['is_approved' => true, 'status' => 'approved']);
