@@ -187,34 +187,43 @@ class EmployeeController extends Controller
             return $this->sendError('Employee not found or unauthorized', null, 404);
         }
 
-        if ($employee->is_approved) {
-            return $this->sendError('Employee is already approved.', null, 400);
+        $wasApproved = (bool) $employee->is_approved;
+
+        // Only create a fresh virtual account when the company was NOT approved yet.
+        // If already approved, skip Sarepay account creation and reuse the existing wallet.
+        $accountData = null;
+        if (!$wasApproved) {
+            $sarepayResponse = $this->sarepayService->createAccount($employee);
+            $accountData = $sarepayResponse;
         }
-
-        // Call Sarepay to create virtual account
-        $sarepayResponse = $this->sarepayService->createAccount($employee);
-       
-
-        $accountData = $sarepayResponse;
 
         DB::transaction(function () use ($employee, $accountData) {
             $employee->update(['is_approved' => true, 'status' => 'approved']);
 
-            // Create wallet for the employee with virtual account details
-            Wallet::updateOrCreate([
-                'user_id' => $employee->id,
-            ], [
-                'currency' => 'NGN',
-                'account_number' => $accountData->account_number,
-                'account_name' => $accountData->account_name,
-                'account_reference' => $accountData->account_reference,
-                'bank_name' => $accountData->bank_name,
-            ]);
+            // Wallet already exists for previously approved companies;
+            // create-or-update ensures we never error on re-approve.
+            if ($accountData) {
+                Wallet::updateOrCreate([
+                    'user_id' => $employee->id,
+                ], [
+                    'currency' => 'NGN',
+                    'account_number' => $accountData->account_number,
+                    'account_name' => $accountData->account_name,
+                    'account_reference' => $accountData->account_reference,
+                    'bank_name' => $accountData->bank_name,
+                ]);
+            }
         });
 
+        // Always re-send the approval email on approve() so the merchant can
+        // manually re-trigger it for already-approved companies too.
         Mail::to($employee->email)->send(new EmployerApproved($employee));
 
-        return $this->sendResponse($employee->fresh('wallet'), 'Employee approved and virtual account created successfully.');
+        $message = $wasApproved
+            ? 'Company re-approved successfully (approval email re-sent).'
+            : 'Employee approved and virtual account created successfully.';
+
+        return $this->sendResponse($employee->fresh('wallet'), $message);
     }
 
     public function reject(Request $request, User $employee)
@@ -224,10 +233,6 @@ class EmployeeController extends Controller
         // Ensure the employee belongs to this merchant
         if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
             return $this->sendError('Employee not found or unauthorized', null, 404);
-        }
-
-        if ($employee->is_approved) {
-            return $this->sendError('Employee is already approved.', null, 400);
         }
 
         $request->validate([
@@ -247,10 +252,6 @@ class EmployeeController extends Controller
 
         if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
             return $this->sendError('Employee not found or unauthorized', null, 404);
-        }
-
-        if ($employee->is_approved) {
-            return $this->sendError('Employee is already approved.', null, 400);
         }
 
         $employee->update(['status' => 'under_review']);
