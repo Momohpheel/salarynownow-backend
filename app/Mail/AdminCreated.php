@@ -25,7 +25,7 @@ class AdminCreated extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to SalaryNowNow - Admin Account Created',
+            subject: 'Welcome to Sugar Payroll - Admin Account Created',
         );
     }
 

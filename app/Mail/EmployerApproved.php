@@ -23,7 +23,7 @@ class EmployerApproved extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your SalaryNowNow Account Has Been Approved!',
+            subject: 'Your Sugar Payroll Account Has Been Approved!',
         );
     }
 

@@ -12,9 +12,12 @@
             margin-bottom: 30px;
         }
         .logo {
-            font-size: 28px;
-            font-weight: bold;
-            color: #4CAF50;
+            display: inline-block;
+            text-align: center;
+        }
+        .logo svg {
+            display: block;
+            margin: 0 auto;
         }
         .company-info {
             margin-top: 10px;
@@ -49,7 +52,23 @@
 </head>
 <body>
     <div class="header">
-        <div class="logo">SalaryNowNow</div>
+        <div class="logo">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 48" width="280" height="48" aria-label="Sugar Payroll">
+                <g transform="translate(4 8)">
+                    <rect x="0" y="0" width="12" height="12" fill="#033222"/>
+                    <rect x="14" y="0" width="12" height="12" fill="#A6CCAB"/>
+                    <rect x="28" y="0" width="12" height="12" fill="#033222"/>
+                    <rect x="0" y="14" width="12" height="12" fill="#A6CCAB"/>
+                    <rect x="14" y="14" width="12" height="12" fill="#033222"/>
+                    <rect x="28" y="14" width="12" height="12" fill="#A6CCAB"/>
+                    <rect x="0" y="28" width="12" height="12" fill="#033222"/>
+                    <rect x="14" y="28" width="12" height="12" fill="#A6CCAB"/>
+                    <rect x="28" y="28" width="12" height="12" fill="#033222"/>
+                </g>
+                <text x="54" y="32" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#17241C">Sugar</text>
+                <text x="124" y="32" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#0B6F49">Payroll</text>
+            </svg>
+        </div>
         <div class="company-info">{{ $companyName ?? 'Company' }}</div>
     </div>
 
@@ -110,7 +129,7 @@
     </table>
 
     <div class="footer">
-        <p>SalaryNowNow — Payroll & Embedded Finance Platform</p>
+        <p>Sugar Payroll — Payroll, Sweetened.</p>
     </div>
 </body>
 </html>

@@ -155,7 +155,7 @@ class ReportController extends Controller
                 return [
                     'staff_name' => $a->staff->name,
                     'amount' => '₦' . number_format($a->amount, 2),
-                    'lender' => 'SalaryNowNow', // Default lender name
+                    'lender' => 'Sugar Payroll', // Default lender name
                     'issue_date' => $a->created_at->format('d M Y'),
                     'due_date' => $a->created_at->addMonth()->day(25)->format('d M Y'), // Simulated
                     'repaid' => $a->status === 'repaid' ? '₦' . number_format($a->amount, 2) : '₦0.00',

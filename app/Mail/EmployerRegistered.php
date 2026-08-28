@@ -23,7 +23,7 @@ class EmployerRegistered extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to SalaryNowNow - Complete Your Profile',
+            subject: 'Welcome to Sugar Payroll - Complete Your Profile',
         );
     }
 

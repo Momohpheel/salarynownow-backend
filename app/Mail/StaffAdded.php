@@ -29,7 +29,7 @@ class StaffAdded extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to SalaryNowNow - Staff Account',
+            subject: 'Welcome to Sugar Payroll - Staff Account',
         );
     }
 

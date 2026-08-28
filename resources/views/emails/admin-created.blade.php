@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Welcome to SalaryNowNow - Admin Account Created</title>
+    <title>Welcome to Sugar Payroll - Admin Account Created</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -16,11 +16,7 @@
         .header {
             margin-bottom: 30px;
         }
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: #4CAF50;
-        }
+        .logo{display:block}.logo svg{display:block}
         .footer {
             margin-top: 40px;
             color: #666;
@@ -31,11 +27,21 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">SalaryNowNow</div>
-            <hr>
+            <div class="logo">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 44" width="220" height="38" aria-label="Sugar Payroll">
+  <g transform="translate(4 10)">
+    <rect x="0" y="0" width="10" height="10" fill="#033222"/><rect x="12" y="0" width="10" height="10" fill="#A6CCAB"/><rect x="24" y="0" width="10" height="10" fill="#033222"/>
+    <rect x="0" y="12" width="10" height="10" fill="#A6CCAB"/><rect x="12" y="12" width="10" height="10" fill="#033222"/><rect x="24" y="12" width="10" height="10" fill="#A6CCAB"/>
+    <rect x="0" y="24" width="10" height="10" fill="#033222"/><rect x="12" y="24" width="10" height="10" fill="#A6CCAB"/><rect x="24" y="24" width="10" height="10" fill="#033222"/>
+  </g>
+  <text x="46" y="29" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#17241C">Sugar</text>
+  <text x="110" y="29" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#0B6F49">Payroll</text>
+</svg>
+</div>
+<hr style="border-color:#D9E6C4;">
         </div>
 
-        <h2>Welcome to SalaryNowNow!</h2>
+        <h2>Welcome to Sugar Payroll!</h2>
 
         <p>Hi {{ $admin->contact_person }},</p>
 
@@ -49,7 +55,7 @@
         <p>Please log in and change your password immediately.</p>
 
         <div class="footer">
-            <p>SalaryNowNow — Payroll & Embedded Finance Platform</p>
+            <p>Sugar Payroll — Payroll, Sweetened.</p>
         </div>
     </div>
 </body>

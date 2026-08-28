@@ -483,7 +483,7 @@ class StaffController extends Controller
 
     private function getStaffLoginUrl(): string
     {
-        return config('app.frontend_url', 'https://salarynownow.com') . '/login';
+        return config('app.frontend_url', 'https://sugarpayroll.com') . '/login';
     }
 
     private function normalizeBankName(string $bankName): string

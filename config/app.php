@@ -13,8 +13,8 @@ return [
     |
     */
 
-    'frontend_url' => env('FRONTEND_URL', 'https://salarynownow.com'),
-    'name' => env('APP_NAME', 'Laravel'),
+    'frontend_url' => env('FRONTEND_URL', 'https://sugarpayroll.com'),
+    'name' => env('APP_NAME', 'Sugar Payroll'),
 
     /*
     |--------------------------------------------------------------------------

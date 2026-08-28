@@ -29,7 +29,7 @@ class SarepayService
             'status' => 'success',
             'data' => [
                 'account_number' => '012' . rand(1000000, 9999999),
-                'account_name' => 'SalaryNowNow - ' . $user->name,
+                'account_name' => 'Sugar Payroll - ' . $user->name,
                 'account_reference' => 'REF-' . strtoupper(Str::random(10)),
                 'bank_name' => 'Sarepay Microfinance Bank',
             ]

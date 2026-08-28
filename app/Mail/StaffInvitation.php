@@ -27,7 +27,7 @@ class StaffInvitation extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: $this->employer->company_name . ' invited you to SalaryNowNow',
+            subject: $this->employer->company_name . ' invited you to Sugar Payroll',
         );
     }
 

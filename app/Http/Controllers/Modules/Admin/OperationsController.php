@@ -57,7 +57,7 @@ class OperationsController extends Controller
                     'employee' => $advance->staff->name ?? 'Unknown',
                     'company' => $advance->user->company_name ?? $advance->user->name ?? 'Unknown',
                     'amount' => '₦' . number_format($advance->amount, 2),
-                    'lender' => 'SalaryNowNow',
+                    'lender' => 'Sugar Payroll',
                     'status' => ucfirst($advance->status),
                     'date' => $advance->created_at->format('d M Y'),
                 ];

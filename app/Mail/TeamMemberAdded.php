@@ -29,7 +29,7 @@ class TeamMemberAdded extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to SalaryNowNow - Team Member Account',
+            subject: 'Welcome to Sugar Payroll - Team Member Account',
         );
     }
 

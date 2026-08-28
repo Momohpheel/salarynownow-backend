@@ -17,7 +17,7 @@ class AdminSeeder extends Seeder
     {
         // Create SuperAdmin
         User::updateOrCreate(
-            ['email' => 'superadmin@salarynownow.com'],
+            ['email' => 'superadmin@sugarpayroll.com'],
             [
                 'name' => 'System SuperAdmin',
                 'password' => Hash::make('password'),
@@ -29,7 +29,7 @@ class AdminSeeder extends Seeder
 
         // Create a default Merchant (Admin)
         User::updateOrCreate(
-            ['email' => 'admin@salarynownow.com'],
+            ['email' => 'admin@sugarpayroll.com'],
             [
                 'name' => 'Default Merchant',
                 'link_name' => 'main',

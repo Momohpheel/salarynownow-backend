@@ -287,7 +287,7 @@ class SarepayService{
                 'account_number' => $account_number,
                 'bank_code' => $bank_code,
                 'amount' => $amount,
-                'narration' => 'SALARYNOWNOW TRANSFER/' . $narration ?? "to $recipient_name",
+                'narration' => 'SUGAR PAYROLL TRANSFER/' . $narration ?? "to $recipient_name",
                 'recipient_name' => $recipient_name,
             ];
 
