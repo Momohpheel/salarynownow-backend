@@ -227,7 +227,8 @@ class PayrollController extends Controller
                 }
 
                 $bonus = (float) ($item['bonus_amount'] ?? 0);
-                $pensionER = round($grossForCalc * ((float) ($s->pension_employer_rate ?? 10) / 100), 2);
+                $pensionER = 0;
+                //round($grossForCalc * ((float) ($s->pension_employer_rate ?? 10) / 100), 2);
                 $netPay = $grossForCalc + $bonus - $tax - $nhf - $pensionEE - $otherDeds;
 
                 $staffDetails->push([
