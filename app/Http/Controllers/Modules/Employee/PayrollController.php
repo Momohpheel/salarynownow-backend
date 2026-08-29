@@ -160,7 +160,25 @@ class PayrollController extends Controller
                     ? (float) $item['gross_salary']
                     : (float) $s->salary;
 
-                $deductionRows = $item['deductions'] ?? [];
+                $rawDeductionRows = $item['deductions'] ?? [];
+
+                $legacyDedAmount = isset($item['deduction_amount']) ? (float) $item['deduction_amount'] : 0;
+                $legacyDedType = $item['deduction_type'] ?? null;
+                FacadesLog::info('Review payroll staff_item', [
+                    'staff_id' => $item['id'],
+                    'received_deduction_amount' => $legacyDedAmount,
+                    'received_deduction_type' => $legacyDedType,
+                    'deductions_count' => count($rawDeductionRows),
+                ]);
+
+                if (empty($rawDeductionRows) && $legacyDedAmount > 0) {
+                    $rawDeductionRows = [[
+                        'name' => $legacyDedType && $legacyDedType !== 'none' ? $legacyDedType : 'Deduction',
+                        'amount' => $legacyDedAmount,
+                    ]];
+                }
+
+                $deductionRows = $rawDeductionRows;
                 $normalized = [];
                 $pensionEE = 0;
                 $tax = 0;
@@ -335,6 +353,8 @@ class PayrollController extends Controller
             'staff_data.*.bonus_type' => ['nullable', 'string'],
             'staff_data.*.bonus_amount' => ['nullable', 'numeric', 'min:0'],
             'staff_data.*.gross_salary' => ['nullable', 'numeric', 'min:0'],
+            'staff_data.*.deduction_type' => ['nullable', 'string'],
+            'staff_data.*.deduction_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $user = $actingUser ?? $request->user();
@@ -374,6 +394,23 @@ class PayrollController extends Controller
                     : (float) $staff->salary;
 
                 $rawDeductionRows = $item['deductions'] ?? [];
+
+                $legacyDedAmount = isset($item['deduction_amount']) ? (float) $item['deduction_amount'] : 0;
+                $legacyDedType = $item['deduction_type'] ?? null;
+                FacadesLog::info('Payroll staff_item', [
+                    'staff_id' => $item['id'],
+                    'received_deduction_amount' => $legacyDedAmount,
+                    'received_deduction_type' => $legacyDedType,
+                    'deductions_count' => count($rawDeductionRows),
+                ]);
+
+                if (empty($rawDeductionRows) && $legacyDedAmount > 0) {
+                    $rawDeductionRows = [[
+                        'name' => $legacyDedType && $legacyDedType !== 'none' ? $legacyDedType : 'Deduction',
+                        'amount' => $legacyDedAmount,
+                    ]];
+                }
+
                 $deductionRows = collect($rawDeductionRows)->map(function ($row) {
                     $mapped = $row;
                     if (empty($mapped['deduction_type_id']) && !empty($mapped['type_id'])) {
