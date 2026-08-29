@@ -135,69 +135,164 @@ class PayrollController extends Controller
     public function review(Request $request)
     {
         $employerId = $request->user()->getEmployerId();
-        $staff = User::where('parent_id', $employerId)->staff()->where('is_active', true)->get();
-
+        $staffQuery = User::where('parent_id', $employerId)->staff()->where('is_active', true);
+        $staff = $staffQuery->get()->keyBy('id');
         $deductionTypes = DeductionType::forEmployer($employerId)->active()->get();
+        $typesByKey = $deductionTypes->keyBy('system_key');
+        $typesById = $deductionTypes->keyBy('id');
 
-        $staffDetails = $staff->map(function ($s) use ($deductionTypes) {
-            $pensionEE = $s->salary * ($s->pension_employee_rate / 100);
-            $pensionER = $s->salary * ($s->pension_employer_rate / 100);
-            $tax = $s->tax_deduction ?? 0;
-            $nhf = $s->nhf ?? 0;
+        // If caller submitted explicit staff_data with edited deductions, prefer those.
+        $submittedStaff = $request->input('staff_data');
+        $useSubmitted = is_array($submittedStaff) && count($submittedStaff) > 0;
 
-            $defaultDeductions = $deductionTypes->map(function ($d) use ($s) {
-                $amount = 0;
-                if ($d->is_system && $d->system_key === 'tax') {
-                    $amount = $s->tax_deduction ?? 0;
-                } elseif ($d->is_system && $d->system_key === 'nhf') {
-                    $amount = $s->nhf ?? 0;
-                } elseif ($d->is_system && $d->system_key === 'pension_ee') {
-                    $amount = $s->salary * (($s->pension_employee_rate ?? $d->percentage_value ?? 8) / 100);
-                } elseif ($d->is_percentage) {
-                    $pct = (float) ($d->percentage_value ?? 0);
-                    $amount = $s->salary * ($pct / 100);
-                } else {
-                    $amount = (float) ($d->default_amount ?? 0);
+        $staffDetails = collect();
+        $periodStart = $request->input('period_start');
+        $periodEnd = $request->input('period_end');
+
+        if ($useSubmitted) {
+            foreach ($submittedStaff as $item) {
+                $s = $staff->get($item['id'] ?? null);
+                if (!$s) {
+                    continue;
                 }
+
+                $grossForCalc = isset($item['gross_salary'])
+                    ? (float) $item['gross_salary']
+                    : (float) $s->salary;
+
+                $deductionRows = $item['deductions'] ?? [];
+                $normalized = [];
+                $pensionEE = 0;
+                $tax = 0;
+                $nhf = 0;
+                $otherDeds = 0;
+                $deductionTotals = 0;
+
+                foreach ($deductionRows as $row) {
+                    $amt = (float) ($row['amount'] ?? 0);
+                    $key = $row['key'] ?? null;
+                    $typeId = $row['deduction_type_id'] ?? $row['type_id'] ?? null;
+                    $name = $row['name'] ?? null;
+                    if ($key === 'tax') {
+                        $tax = $amt;
+                        $name = $name ?? ($typesByKey->get('tax')?->name ?? 'PAYE Tax');
+                    } elseif ($key === 'nhf') {
+                        $nhf = $amt;
+                        $name = $name ?? ($typesByKey->get('nhf')?->name ?? 'NHF');
+                    } elseif ($key === 'pension_ee') {
+                        $pensionEE = $amt;
+                        $name = $name ?? ($typesByKey->get('pension_ee')?->name ?? 'Pension (Employee)');
+                    } else {
+                        $otherDeds += $amt;
+                    }
+                    $deductionTotals += $amt;
+
+                    $dt = null;
+                    if ($typeId) {
+                        $dt = $typesById->get((int) $typeId);
+                    }
+                    if (!$dt && $key && ($kdt = $typesByKey->get($key))) {
+                        $dt = $kdt;
+                    }
+                    $isPct = $row['is_percentage'] ?? ($dt ? (bool) $dt->is_percentage : false);
+                    $pctVal = $row['percentage_value'] ?? ($dt ? $dt->percentage_value : null);
+
+                    $normalized[] = [
+                        'deduction_type_id' => $dt?->id ?? ($typeId ? (int) $typeId : null),
+                        'name' => (string) ($name ?? $dt?->name ?? 'Deduction'),
+                        'key' => $key,
+                        'amount' => round($amt, 2),
+                        'is_percentage' => (bool) $isPct,
+                        'percentage_value' => $pctVal === null ? null : (float) $pctVal,
+                        'editable' => !($dt?->is_system ?? ($key && in_array($key, ['tax','nhf','pension_ee','pension_er','nsitf','itf'], true))),
+                    ];
+                }
+
+                $bonus = (float) ($item['bonus_amount'] ?? 0);
+                $pensionER = round($grossForCalc * ((float) ($s->pension_employer_rate ?? 10) / 100), 2);
+                $netPay = $grossForCalc + $bonus - $tax - $nhf - $pensionEE - $otherDeds;
+
+                $staffDetails->push([
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'gross' => '₦' . number_format($grossForCalc, 2),
+                    'pension_ee' => '₦' . number_format($pensionEE, 2),
+                    'pension_er' => '₦' . number_format($pensionER, 2),
+                    'tax' => '₦' . number_format($tax, 2),
+                    'nhf' => '₦' . number_format($nhf, 2),
+                    'bonus' => '₦' . number_format($bonus, 2),
+                    'advance_ded' => collect($normalized)->pluck('name')->contains(fn ($n) => is_string($n) && stripos($n, 'advance') !== false) ? 'YES' : 'NO',
+                    'deductions' => $normalized,
+                    'deductions_total' => round($deductionTotals, 2),
+                    'net_pay' => '₦' . number_format(max($netPay, 0), 2),
+                    'raw_net' => max($netPay, 0),
+                    'raw_gross' => $grossForCalc,
+                ]);
+            }
+        } else {
+            $staffDetails = $staff->map(function ($s) use ($deductionTypes, $typesByKey) {
+                $grossForCalc = (float) $s->salary;
+                $pensionEE = round($grossForCalc * ((float) ($s->pension_employee_rate ?? 8) / 100), 2);
+                $pensionER = round($grossForCalc * ((float) ($s->pension_employer_rate ?? 10) / 100), 2);
+                $tax = (float) ($s->tax_deduction ?? 0);
+                $nhf = (float) ($s->nhf ?? 0);
+
+                $defaultDeductions = $deductionTypes->map(function ($d) use ($s, $grossForCalc, $pensionEE, $tax, $nhf) {
+                    $amt = 0;
+                    if ($d->is_system && $d->system_key === 'tax') {
+                        $amt = $tax;
+                    } elseif ($d->is_system && $d->system_key === 'nhf') {
+                        $amt = $nhf;
+                    } elseif ($d->is_system && $d->system_key === 'pension_ee') {
+                        $amt = $pensionEE;
+                    } elseif ($d->is_percentage) {
+                        $pct = (float) ($d->percentage_value ?? 0);
+                        $amt = $grossForCalc * ($pct / 100);
+                    } else {
+                        $amt = (float) ($d->default_amount ?? 0);
+                    }
+                    return [
+                        'deduction_type_id' => $d->id,
+                        'name' => $d->name,
+                        'key' => $d->system_key,
+                        'amount' => round($amt, 2),
+                        'is_percentage' => (bool) $d->is_percentage,
+                        'percentage_value' => $d->percentage_value ? (float) $d->percentage_value : null,
+                        'editable' => !$d->is_system,
+                    ];
+                })->values();
+
+                $deductionTotals = $defaultDeductions->sum('amount');
+                $netPay = $grossForCalc - $deductionTotals;
+
                 return [
-                    'deduction_type_id' => $d->id,
-                    'name' => $d->name,
-                    'key' => $d->system_key,
-                    'amount' => round($amount, 2),
-                    'is_percentage' => (bool) $d->is_percentage,
-                    'percentage_value' => $d->percentage_value ? (float) $d->percentage_value : null,
-                    'editable' => !$d->is_system,
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'gross' => '₦' . number_format($grossForCalc, 2),
+                    'pension_ee' => '₦' . number_format($pensionEE, 2),
+                    'pension_er' => '₦' . number_format($pensionER, 2),
+                    'tax' => '₦' . number_format($tax, 2),
+                    'nhf' => '₦' . number_format($nhf, 2),
+                    'bonus' => '₦' . number_format(0, 2),
+                    'advance_ded' => 'NO',
+                    'deductions' => $defaultDeductions,
+                    'deductions_total' => round($deductionTotals, 2),
+                    'net_pay' => '₦' . number_format(max($netPay, 0), 2),
+                    'raw_net' => max($netPay, 0),
+                    'raw_gross' => $grossForCalc,
                 ];
             })->values();
-
-            $totalDeductions = $defaultDeductions->sum('amount');
-            $netPay = $s->salary - $totalDeductions;
-
-            return [
-                'id' => $s->id,
-                'name' => $s->name,
-                'gross' => '₦' . number_format($s->salary, 2),
-                'pension_ee' => '₦' . number_format($pensionEE, 2),
-                'pension_er' => '₦' . number_format($pensionER, 2),
-                'tax' => '₦' . number_format($tax, 2),
-                'nhf' => '₦' . number_format($nhf, 2),
-                'bonus' => '₦' . number_format(0, 2),
-                'advance_ded' => 'NO',
-                'deductions' => $defaultDeductions,
-                'deductions_total' => round($totalDeductions, 2),
-                'net_pay' => '₦' . number_format(max($netPay, 0), 2),
-                'raw_net' => max($netPay, 0),
-                'raw_gross' => $s->salary,
-            ];
-        });
+        }
 
         $data = [
-            'staff_payments' => $staffDetails,
+            'staff_payments' => $staffDetails->values(),
             'summary' => [
-                'count' => $staff->count(),
+                'count' => $staffDetails->count(),
                 'grand_total_net' => '₦' . number_format($staffDetails->sum('raw_net'), 2),
                 'raw_total_net' => $staffDetails->sum('raw_net'),
-            ]
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+            ],
         ];
 
         return $this->sendResponse($data, 'Payroll review details retrieved successfully');
@@ -234,10 +329,12 @@ class PayrollController extends Controller
             'staff_data.*.id' => 'required|exists:users,id',
             'staff_data.*.deductions' => ['nullable', 'array'],
             'staff_data.*.deductions.*.deduction_type_id' => ['nullable', 'exists:deduction_types,id'],
+            'staff_data.*.deductions.*.type_id' => ['nullable', 'exists:deduction_types,id'],
             'staff_data.*.deductions.*.name' => ['required_with:staff_data.*.deductions', 'string', 'max:255'],
             'staff_data.*.deductions.*.amount' => ['required_with:staff_data.*.deductions', 'numeric', 'min:0'],
             'staff_data.*.bonus_type' => ['nullable', 'string'],
             'staff_data.*.bonus_amount' => ['nullable', 'numeric', 'min:0'],
+            'staff_data.*.gross_salary' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $user = $actingUser ?? $request->user();
@@ -272,12 +369,26 @@ class PayrollController extends Controller
                     continue;
                 }
 
-                $deductionRows = $item['deductions'] ?? [];
+                $grossForCalc = isset($item['gross_salary'])
+                    ? (float) $item['gross_salary']
+                    : (float) $staff->salary;
+
+                $rawDeductionRows = $item['deductions'] ?? [];
+                $deductionRows = collect($rawDeductionRows)->map(function ($row) {
+                    $mapped = $row;
+                    if (empty($mapped['deduction_type_id']) && !empty($mapped['type_id'])) {
+                        $mapped['deduction_type_id'] = $mapped['type_id'];
+                    } elseif (empty($mapped['type_id']) && !empty($mapped['deduction_type_id'])) {
+                        $mapped['type_id'] = $mapped['deduction_type_id'];
+                    }
+                    return $mapped;
+                })->all();
+
                 $deductionTotals = 0;
                 $pensionEE = 0;
-                $pensionER = 0;
                 $tax = 0;
                 $nhf = 0;
+                $otherDeds = 0;
 
                 foreach ($deductionRows as $row) {
                     $amt = (float) ($row['amount'] ?? 0);
@@ -289,15 +400,14 @@ class PayrollController extends Controller
                     } elseif ($key === 'pension_ee') {
                         $pensionEE = $amt;
                     } else {
-                        $deductionTotals += $amt;
+                        $otherDeds += $amt;
                     }
+                    $deductionTotals += $amt;
                 }
 
                 $bonus = (float) ($item['bonus_amount'] ?? 0);
-                $grossForCalc = isset($item['gross_salary'])
-                    ? (float) $item['gross_salary']
-                    : (float) $staff->salary;
-                $netPay = $grossForCalc - $pensionEE - $tax - $nhf - $deductionTotals + $bonus;
+                $pensionER = round($grossForCalc * ((float) ($staff->pension_employer_rate ?? 10) / 100), 2);
+                $netPay = $grossForCalc + $bonus - $pensionEE - $tax - $nhf - $otherDeds;
 
                 $legacyOtherDeductions = 0;
                 foreach ($deductionRows as $row) {
@@ -341,7 +451,7 @@ class PayrollController extends Controller
 
                 $payslips[] = $payslip;
                 $totalNetToPay += $netPay;
-                $totalGross += $staff->salary;
+                $totalGross += $grossForCalc;
                 $staffCount++;
             }
 
