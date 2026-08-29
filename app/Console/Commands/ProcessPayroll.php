@@ -48,7 +48,7 @@ class ProcessPayroll extends Command
             return;
         }
 
-        $disbursementCharge = Charge::where('name', 'disbursement')->first();
+        //$disbursementCharge = Charge::where('name', 'disbursement')->first();
 
         foreach ($payrolls as $payroll) {
             $this->info("Processing payroll ID: {$payroll->id} for employer: {$payroll->user->name}");
@@ -75,9 +75,9 @@ class ProcessPayroll extends Command
                     }
 
                     $chargeAmount = 0;
-                    if ($disbursementCharge && $disbursementCharge->type === 'fixed') {
-                        $chargeAmount = $disbursementCharge->amount;
-                    }
+                    // if ($disbursementCharge && $disbursementCharge->type === 'fixed') {
+                    //     $chargeAmount = $disbursementCharge->amount;
+                    // }
 
                     $totalDeduction = $payslip->net_salary + $chargeAmount;
 
