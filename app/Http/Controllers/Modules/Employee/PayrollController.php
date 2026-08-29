@@ -11,8 +11,10 @@ use App\Models\PayslipDeduction;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log as FacadesLog;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+
 
 class PayrollController extends Controller
 {
@@ -342,6 +344,11 @@ class PayrollController extends Controller
                 $totalGross += $staff->salary;
                 $staffCount++;
             }
+
+            FacadesLog::info('Total net to pay: ' . $totalNetToPay);
+            FacadesLog::info('Total gross salary: ' . $totalGross);
+            FacadesLog::info('Total staff count: ' . $staffCount);
+            FacadesLog::info('Wallet balance: ' . $wallet->balance);
 
             if ($wallet->balance < $totalNetToPay) {
                 throw new \Exception("Insufficient wallet balance to complete payroll.");
