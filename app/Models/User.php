@@ -32,6 +32,7 @@ use Laravel\Sanctum\HasApiTokens;
     'company_address',
     'number_of_staff',
     'bvn',
+    'alternative_emails',
     'cac_certificate_path',
     'director_id_path',
     'utility_bill_path',
@@ -62,7 +63,9 @@ use Laravel\Sanctum\HasApiTokens;
     'role_id',
     'otp',
     'otp_expires_at',
-    'otp_attempts'
+    'otp_attempts',
+    'login_attempts',
+    'lockout_until',
 
 ])]
 #[Hidden(['password', 'remember_token'])]
@@ -76,6 +79,9 @@ class User extends Authenticatable
     const TYPE_EMPLOYEE = 'employee';
     const TYPE_STAFF = 'staff';
     const TYPE_PARTNER = 'partner';
+
+    const MAX_LOGIN_ATTEMPTS = 3;
+    const LOCKOUT_DURATION_MINUTES = 15;
 
 
 
@@ -91,7 +97,38 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_approved' => 'boolean',
             'is_active' => 'boolean',
+            'lockout_until' => 'datetime',
+            'alternative_emails' => 'array',
         ];
+    }
+
+    public function isLockedOut(): bool
+    {
+        return $this->lockout_until !== null && $this->lockout_until->isFuture();
+    }
+
+    public function getLockoutRemainingMinutes(): int
+    {
+        if (!$this->isLockedOut()) {
+            return 0;
+        }
+        return max(1, (int) $this->lockout_until->diffInMinutes(now()));
+    }
+
+    public function incrementLoginAttempts(): void
+    {
+        $this->login_attempts = ($this->login_attempts ?? 0) + 1;
+        if ($this->login_attempts >= self::MAX_LOGIN_ATTEMPTS) {
+            $this->lockout_until = now()->addMinutes(self::LOCKOUT_DURATION_MINUTES);
+        }
+        $this->save();
+    }
+
+    public function resetLoginAttempts(): void
+    {
+        $this->login_attempts = 0;
+        $this->lockout_until = null;
+        $this->save();
     }
 
     /**

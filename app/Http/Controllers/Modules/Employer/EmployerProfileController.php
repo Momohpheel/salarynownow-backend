@@ -40,10 +40,12 @@ class EmployerProfileController extends Controller
             'contact_person' => ['sometimes', 'string', 'max:255'],
             'phone_number' => ['sometimes', 'string', 'max:20'],
             'state' => ['sometimes', 'string', 'max:255'],
+            'alternative_emails' => ['sometimes', 'nullable', 'array'],
+            'alternative_emails.*' => ['email', 'max:255'],
         ]);
 
         $employer->update($validatedData);
 
-        return $this->sendResponse($employer, 'Employer profile updated successfully.');
+        return $this->sendResponse($employer->fresh(), 'Employer profile updated successfully.');
     }
 }

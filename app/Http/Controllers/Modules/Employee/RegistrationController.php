@@ -94,9 +94,11 @@ class RegistrationController extends Controller
             'company_address' => ['required', 'string'],
             'number_of_staff' => ['required', 'integer', 'min:1'],
             'bvn' => ['required', 'string', 'digits:11'],
-            'cac_certificate' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:2048'],
-            'director_id' => ['required', 'file', 'mimes:pdf,jpg,png', 'max:2048'],
-            'utility_bill' => ['nullable', 'file', 'mimes:pdf,jpg,png', 'max:2048'],
+            'alternative_emails' => ['nullable', 'array'],
+            'alternative_emails.*' => ['email', 'max:255'],
+            'cac_certificate' => ['required', 'file', 'mimes:pdf,jpg,png,jpeg', 'mimetypes:application/pdf,image/jpeg,image/png,image/jpg', 'max:5120'],
+            'director_id' => ['required', 'file', 'mimes:pdf,jpg,png,jpeg', 'mimetypes:application/pdf,image/jpeg,image/png,image/jpg', 'max:5120'],
+            'utility_bill' => ['nullable', 'file', 'mimes:pdf,jpg,png,jpeg', 'mimetypes:application/pdf,image/jpeg,image/png,image/jpg', 'max:5120'],
         ]);
 
         // Handle file uploads
@@ -115,6 +117,7 @@ class RegistrationController extends Controller
                 'company_address' => $request->company_address,
                 'number_of_staff' => $request->number_of_staff,
                 'bvn' => $request->bvn,
+                'alternative_emails' => $request->alternative_emails,
                 'cac_certificate_path' => $cacPath,
                 'director_id_path' => $directorIdPath,
                 'utility_bill_path' => $utilityBillPath,
