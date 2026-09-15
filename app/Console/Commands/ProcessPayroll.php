@@ -11,6 +11,7 @@ use App\Mail\PayrollCompleted;
 use App\Models\Payroll;
 use App\Models\Payslip;
 use App\Models\Charge;
+use App\Models\Notification;
 use App\Models\Transaction;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Support\Facades\Mail;
@@ -157,6 +158,43 @@ class ProcessPayroll extends Command
             $payroll->update([
                 'status' => $hasFailures ? Payroll::STATUS_FAILED : Payroll::STATUS_COMPLETED,
             ]);
+
+            try {
+                $employer = $payroll->user;
+                if ($employer) {
+                    $statusLabel = $hasFailures ? 'has failures' : 'complete';
+                    Notification::notify($employer, [
+                        'category' => 'payroll',
+                        'type' => 'payroll_completed',
+                        'title' => "Payroll {$statusLabel}",
+                        'body' => "Payroll run for {$payroll->period_label} ({$payroll->staff_count} staff, ₦" . number_format($payroll->amount, 2) . ") {$statusLabel}.",
+                        'icon' => 'check',
+                        'deep_link' => "/payroll/{$payroll->id}",
+                        'metadata' => [
+                            'payroll_id' => $payroll->id,
+                            'period' => $payroll->period_label,
+                            'staff_count' => $payroll->staff_count,
+                            'amount' => $payroll->amount,
+                            'has_failures' => $hasFailures,
+                        ],
+                    ]);
+                    if (!$hasFailures && $employer->parent_id) {
+                        Notification::notify($employer->parent_id, [
+                            'category' => 'payroll',
+                            'type' => 'payroll_completed',
+                            'title' => "Payroll {$statusLabel} for " . ($employer->company_name ?? $employer->name),
+                            'body' => "Payroll run for {$payroll->period_label} ({$payroll->staff_count} staff, ₦" . number_format($payroll->amount, 2) . ") {$statusLabel}.",
+                            'icon' => 'check',
+                            'deep_link' => "/admin/payrolls",
+                            'metadata' => [
+                                'payroll_id' => $payroll->id,
+                                'employer_id' => $employer->id,
+                            ],
+                        ]);
+                    }
+                }
+            } catch (\Throwable) {
+            }
 
             if (! $hasFailures && $payroll->user?->email) {
                 $payroll->load('user');

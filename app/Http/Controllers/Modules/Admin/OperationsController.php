@@ -460,10 +460,22 @@ class OperationsController extends Controller
     {
         $employerIds = $this->getEmployerIds($admin);
 
-        $employerEvents = User::where('type', User::TYPE_EMPLOYEE)
-            ->where('parent_id', $admin->id)
+        $fromCarbon = $request->filled('from') ? Carbon::parse($request->from)->startOfDay() : null;
+        $toCarbon = $request->filled('to') ? Carbon::parse($request->to)->endOfDay() : null;
+        $hasDateFilter = $fromCarbon !== null || $toCarbon !== null;
+        $defaultLimit = $hasDateFilter ? 10000 : 500;
+
+        $employerQuery = User::where('type', User::TYPE_EMPLOYEE)
+            ->where('parent_id', $admin->id);
+        if ($fromCarbon) {
+            $employerQuery->where('updated_at', '>=', $fromCarbon);
+        }
+        if ($toCarbon) {
+            $employerQuery->where('updated_at', '<=', $toCarbon);
+        }
+        $employerEvents = $employerQuery
             ->latest()
-            ->limit(25)
+            ->limit($defaultLimit)
             ->get()
             ->map(function ($employer) {
                 return [
@@ -478,10 +490,17 @@ class OperationsController extends Controller
                 ];
             });
 
-        $payrollEvents = Payroll::with('user:id,name,company_name')
-            ->whereIn('user_id', $employerIds)
+        $payrollQuery = Payroll::with('user:id,name,company_name')
+            ->whereIn('user_id', $employerIds);
+        if ($fromCarbon) {
+            $payrollQuery->where('updated_at', '>=', $fromCarbon);
+        }
+        if ($toCarbon) {
+            $payrollQuery->where('updated_at', '<=', $toCarbon);
+        }
+        $payrollEvents = $payrollQuery
             ->latest('updated_at')
-            ->limit(25)
+            ->limit($defaultLimit)
             ->get()
             ->map(function ($payroll) {
                 return [
@@ -494,10 +513,17 @@ class OperationsController extends Controller
                 ];
             });
 
-        $advanceEvents = SalaryAdvance::with(['staff:id,name', 'user:id,name,company_name'])
-            ->whereIn('user_id', $employerIds)
+        $advanceQuery = SalaryAdvance::with(['staff:id,name', 'user:id,name,company_name'])
+            ->whereIn('user_id', $employerIds);
+        if ($fromCarbon) {
+            $advanceQuery->where('created_at', '>=', $fromCarbon);
+        }
+        if ($toCarbon) {
+            $advanceQuery->where('created_at', '<=', $toCarbon);
+        }
+        $advanceEvents = $advanceQuery
             ->latest()
-            ->limit(25)
+            ->limit($defaultLimit)
             ->get()
             ->map(function ($advance) {
                 return [
@@ -512,10 +538,17 @@ class OperationsController extends Controller
             });
 
         $walletIds = Wallet::whereIn('user_id', $employerIds)->pluck('id');
-        $walletEvents = WalletLog::with('wallet.user:id,name,company_name')
-            ->whereIn('wallet_id', $walletIds)
+        $walletQuery = WalletLog::with('wallet.user:id,name,company_name')
+            ->whereIn('wallet_id', $walletIds);
+        if ($fromCarbon) {
+            $walletQuery->where('created_at', '>=', $fromCarbon);
+        }
+        if ($toCarbon) {
+            $walletQuery->where('created_at', '<=', $toCarbon);
+        }
+        $walletEvents = $walletQuery
             ->latest()
-            ->limit(25)
+            ->limit($defaultLimit)
             ->get()
             ->map(function ($log) {
                 return [
@@ -528,10 +561,18 @@ class OperationsController extends Controller
                 ];
             });
 
-        $transactionEvents = Transaction::with('user:id,name,email')
-            ->whereIn('user_id', User::where('type', User::TYPE_STAFF)->whereIn('parent_id', $employerIds)->pluck('id'))
+        $staffIds = User::where('type', User::TYPE_STAFF)->whereIn('parent_id', $employerIds)->pluck('id');
+        $transactionQuery = Transaction::with('user:id,name,email')
+            ->whereIn('user_id', $staffIds);
+        if ($fromCarbon) {
+            $transactionQuery->where('created_at', '>=', $fromCarbon);
+        }
+        if ($toCarbon) {
+            $transactionQuery->where('created_at', '<=', $toCarbon);
+        }
+        $transactionEvents = $transactionQuery
             ->latest()
-            ->limit(25)
+            ->limit($defaultLimit)
             ->get()
             ->map(function ($transaction) {
                 return [
@@ -570,16 +611,6 @@ class OperationsController extends Controller
         if ($request->filled('target') && strtolower($request->target) !== 'all targets') {
             $target = strtolower($request->target);
             $events = $events->filter(fn ($event) => strtolower($event['target_type']) === $target);
-        }
-
-        if ($request->filled('from')) {
-            $from = Carbon::parse($request->from)->startOfDay();
-            $events = $events->filter(fn ($event) => $event['timestamp']->gte($from));
-        }
-
-        if ($request->filled('to')) {
-            $to = Carbon::parse($request->to)->endOfDay();
-            $events = $events->filter(fn ($event) => $event['timestamp']->lte($to));
         }
 
         return $events->map(function ($event) {

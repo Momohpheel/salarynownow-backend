@@ -37,6 +37,8 @@ use App\Http\Controllers\Modules\Staff\ProfileController as StaffProfileControll
 use App\Http\Controllers\Modules\Staff\PayslipController as StaffPayslipController;
 use App\Http\Controllers\Modules\Staff\SalaryAdvanceController as StaffSalaryAdvanceController;
 use App\Http\Controllers\Modules\Employee\ReportController as EmployeeReportController;
+use App\Http\Controllers\Modules\Employee\NotificationController as EmployeeNotificationController;
+use App\Http\Controllers\Modules\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Modules\Employee\StaffController;
 use App\Http\Controllers\Modules\Employer\EmployerProfileController;
 use App\Http\Controllers\Modules\SuperAdmin\DashboardController as SuperAdminDashboardController;
@@ -126,6 +128,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/team/update-role', [AdminTeamController::class, 'updateRole']);
         Route::get('/settings', [AdminSettingsController::class, 'index']);
         Route::post('/settings', [AdminSettingsController::class, 'store']);
+        Route::get('/notifications', [AdminNotificationController::class, 'index']);
+        Route::post('/notifications/{id}/read', [AdminNotificationController::class, 'markAsRead']);
+        Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllAsRead']);
     });
 
     // Staff Protected Routes
@@ -205,6 +210,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'assignRole']);
         Route::post('/users/{user}/role', [EmployeeUserRoleController::class, 'updateRole']);
         Route::get('/users/{user}/role', [EmployeeUserRoleController::class, 'getUserRole']);
+
+        // Notifications
+        Route::get('/notifications', [EmployeeNotificationController::class, 'index']);
+        Route::post('/notifications/{id}/read', [EmployeeNotificationController::class, 'markAsRead']);
+        Route::post('/notifications/read-all', [EmployeeNotificationController::class, 'markAllAsRead']);
         }); // close ensure.employer.role middleware group
     });
 });

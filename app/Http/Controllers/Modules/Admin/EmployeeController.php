@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\EmployerApproved;
 use App\Mail\EmployerRejected;
+use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Wallet;
@@ -218,6 +219,23 @@ class EmployeeController extends Controller
         // Always re-send the approval email on approve() so the merchant can
         // manually re-trigger it for already-approved companies too.
         Mail::to($employee->email)->send(new EmployerApproved($employee));
+
+        try {
+            Notification::notify($employee, [
+                'category' => 'kyb',
+                'type' => 'kyb_approved',
+                'title' => $wasApproved ? 'Company Re-Approved' : 'Company Approved',
+                'body' => "Your company " . ($employee->company_name ?? $employee->name) . " has been " . ($wasApproved ? 're-' : '') . "approved. You can now process payrolls and onboard staff.",
+                'icon' => 'shield-check',
+                'deep_link' => '/dashboard',
+                'metadata' => [
+                    'employer_id' => $employee->id,
+                    'company_name' => $employee->company_name ?? $employee->name,
+                    'reapproved' => $wasApproved,
+                ],
+            ]);
+        } catch (\Throwable) {
+        }
 
         $message = $wasApproved
             ? 'Company re-approved successfully (approval email re-sent).'
