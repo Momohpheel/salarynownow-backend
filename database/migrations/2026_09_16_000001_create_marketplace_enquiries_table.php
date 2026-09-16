@@ -23,8 +23,8 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamp('replied_at')->nullable();
             $table->timestamps();
-            $table->index(['partner_id', 'status', 'created_at']);
-            $table->index(['submitter_type', 'submitter_id', 'created_at']);
+            // Intentional: NO extra indexes here — they are created safely by 000005
+            // with short MySQL-compliant names to avoid 64-char identifier overflow.
         });
     }
 
