@@ -14,17 +14,23 @@ class EnsureEmployerHasRole
     {
         $user = $request->user();
         if (!$user instanceof User) {
-            return $next($request);
+            return response()->json([
+                'status' => false,
+                'message' => __('Unauthenticated.'),
+            ], 401);
         }
 
         $type = (string) ($user->type ?? '');
         $needsRole =
             $type === User::TYPE_EMPLOYEE ||
             $type === User::TYPE_ADMIN ||
-            $type === User::TYPE_MERCHANT;
+            $type === User::TYPE_PARTNER;
 
         if (!$needsRole) {
-            return $next($request);
+            return response()->json([
+                'status' => false,
+                'message' => __('Forbidden. This endpoint is for employee accounts only.'),
+            ], 403);
         }
 
         if (!empty($user->role_id)) {

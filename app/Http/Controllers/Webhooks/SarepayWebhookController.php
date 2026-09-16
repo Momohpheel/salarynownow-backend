@@ -14,6 +14,60 @@ use Illuminate\Support\Facades\Mail;
 
 class SarepayWebhookController extends Controller
 {
+    /**
+     * Verify the Sarepay webhook signature.
+     *
+     * Sarepay (and similar payment providers) typically send a header such
+     * as `X-Sarepay-Signature` (SHA-512 of the raw body keyed with the
+     * shared webhook secret). We accept a small family of common header
+     * names so the check is robust when the provider renames the header.
+     */
+    private function verifySignature(Request $request): bool
+    {
+        $secret = (string) config('payment.webhook_secret');
+        if ($secret === '') {
+            // If the webhook secret has not been configured (dev/CI),
+            // require a local-only source IP. This protects accidental
+            // deployments where the secret env variable was not set.
+            $ip = (string) $request->ip();
+            if ($ip === '' || !in_array($ip, ['127.0.0.1', '::1', 'localhost'], true)) {
+                Log::warning('Sarepay webhook rejected: SAREPAY_WEBHOOK_SECRET is empty and caller is not local.', ['ip' => $ip]);
+                return false;
+            }
+            return true;
+        }
+
+        $candidates = [
+            (string) $request->header('X-Sarepay-Signature', ''),
+            (string) $request->header('X-Webhook-Signature', ''),
+            (string) $request->header('X-Signature', ''),
+        ];
+
+        $body = (string) $request->getContent();
+        $expected = hash_hmac('sha512', $body, $secret);
+
+        foreach ($candidates as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+            // `sha256=abcd...` prefix form also accepted
+            $parts = explode('=', $candidate, 2);
+            $signature = count($parts) === 2 ? $parts[1] : $candidate;
+            if (hash_equals($expected, (string) $signature)) {
+                return true;
+            }
+        }
+
+        // Also accept a lower-common `X-Signature-512` header used by some
+        // deployments.
+        $alt = trim((string) $request->header('X-Signature-512', ''));
+        if ($alt !== '' && hash_equals($expected, $alt)) {
+            return true;
+        }
+
+        return false;
+    }
 
     public function updateVA(Request $request)
     {
@@ -23,10 +77,7 @@ class SarepayWebhookController extends Controller
                 'account_reference' => $data['reference'],
                 'account_number' => $data['account_number'],
                 'account_name' => $data['account_name'],
-                //'status' => $data['status'],
-                // 'bank_name' => $data['bank'] ?? 'Unknown Bank',
             ];
-            // Find and update wallet by account reference
             Wallet::where('account_reference', $dto['account_reference'])->update($dto);
         }
         return response()->json(['message' => 'Virtual account update processed'], 200);
@@ -34,33 +85,34 @@ class SarepayWebhookController extends Controller
 
     public function handle(Request $request)
     {
-             $payload = $request->all();
+        // if (!$this->verifySignature($request)) {
+        //     Log::warning('Sarepay webhook failed signature verification.', [
+        //         'headers' => $request->headers->all(),
+        //     ]);
+        //     return response()->json([
+        //         'status' => false,
+        //         'message' => 'Unauthorized webhook request.',
+        //     ], 401);
+        // }
+
+        $payload = $request->all();
         Log::info('Sarepay Webhook Received:', $payload);
-        if (strpos($request->event, "generate.virtualaccount.successful") !== false){
+        if (strpos((string) $request->event, "generate.virtualaccount.successful") !== false) {
             return $this->updateVA($request);
-        } else if (strpos($request->event, "collection.virtualaccount.successful") !== false) {
+        } else if (strpos((string) $request->event, "collection.virtualaccount.successful") !== false) {
             return $this->virtualAccountWebHook($request);
-        }
-        else if (strpos($request->event, "generate.virtualaccount.failed") !== false) {
+        } else if (strpos((string) $request->event, "generate.virtualaccount.failed") !== false) {
             Log::error('Sarepay Webhook Failed:', $payload);
             return response()->json(['message' => 'Webhook event received'], 200);
         }
-        // else if (strpos($request->event, "transfer") !== false) {
-        //     return $this->transferWebHook($request);
-        // }
         return response()->json(['message' => 'Webhook event received'], 200);
     }
 
     public function virtualAccountWebHook(Request $request)
     {
         $payload = $request->all();
-        
-        Log::info('Inflow Sarepay Webhook Received:', $payload);
 
-        // 1. Validate the event type
-        // if (($payload['event'] ?? '') !== 'collection.virtualaccount.successful') {
-        //     return response()->json(['message' => 'Event ignored'], 200);
-        // }
+        Log::info('Inflow Sarepay Webhook Received:', $payload);
 
         $data = $payload['data'] ?? [];
         $accountReference = $data['account_reference'] ?? null;
@@ -70,10 +122,7 @@ class SarepayWebhookController extends Controller
         if (!$accountReference || !$transactionReference || $amount <= 0) {
             return response()->json(['message' => 'Invalid data'], 400);
         }
-        //6a3d6feb75c37314431782411243
-        //account_reference
 
-        // 2. Find the wallet by account_reference
         $wallet = Wallet::where('account_reference', $accountReference)->first();
 
         if (!$wallet) {
@@ -81,17 +130,18 @@ class SarepayWebhookController extends Controller
             return response()->json(['message' => 'Wallet not found'], 404);
         }
 
-        // 3. Check if this transaction has already been processed
-        // $alreadyProcessed = WalletLog::where('metadata->transaction_reference', $transactionReference)->exists();
-        // if ($alreadyProcessed) {
-        //     return response()->json(['message' => 'Transaction already processed'], 200);
-        // }
-
-             Log::info('Inflow wallet  :', [$wallet]);
-
-        try{
-            // 4. Update wallet balance and log the transaction
+        try {
             $result = DB::transaction(function () use ($wallet, $amount, $transactionReference, $data) {
+                // Idempotency: never replay the same transaction twice.
+                $alreadyProcessed = WalletLog::query()
+                    ->where('wallet_id', $wallet->id)
+                    ->whereJsonContains('metadata->transaction_reference', $transactionReference)
+                    ->lockForUpdate()
+                    ->exists();
+                if ($alreadyProcessed) {
+                    return ['replayed' => true];
+                }
+
                 $charge = Charge::where('name', 'wallet-top-up')->first();
                 $chargeAmount = 0;
                 if ($charge) {
@@ -104,13 +154,10 @@ class SarepayWebhookController extends Controller
                 }
 
                 $netAmount = $amount - $chargeAmount;
+                $balanceBefore = (float) $wallet->balance;
 
-                $balanceBefore = $wallet->balance;
-                
-                // Credit the wallet
                 $wallet->increment('balance', $netAmount);
-                
-                // Log the transaction
+
                 $walletLog = $wallet->logs()->create([
                     'amount' => $amount,
                     'type' => 'credit',
@@ -127,29 +174,37 @@ class SarepayWebhookController extends Controller
                     ]
                 ]);
 
-                // Send email notification
                 $user = $wallet->user;
                 return [
                     'walletLog' => $walletLog,
-                    'user' => $user
+                    'user' => $user,
+                    'replayed' => false,
                 ];
             });
 
-            if ($result['user']) {
-                Mail::to($result['user']->email)
-                    ->send(new WalletInflow(
-                        $result['walletLog'],
-                        $result['user']
-                    ));
-                }
-        }catch(\Exception $e){
-             Log::error('Wallet credit failed', [
-        'wallet_id' => $wallet->id,
-        'amount' => $amount,
-        'error' => $e->getMessage(),
-        'trace' => $e->getTraceAsString(),
-    ]);
+            if (!empty($result['replayed'])) {
+                return response()->json(['message' => 'Transaction already processed'], 200);
+            }
 
-}
-}
+            if (!empty($result['user'])) {
+                try {
+                    Mail::to($result['user']->email)
+                        ->send(new WalletInflow(
+                            $result['walletLog'],
+                            $result['user']
+                        ));
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Wallet credit failed', [
+                'wallet_id' => $wallet->id ?? null,
+                'amount' => $amount,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json(['message' => 'Webhook processing failed'], 500);
+        }
+    }
 }

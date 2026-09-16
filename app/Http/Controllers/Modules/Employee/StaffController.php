@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Employee;
 use App\Http\Controllers\Controller;
 use App\Mail\StaffAdded;
 use App\Mail\StaffInvitation;
+use App\Models\Notification;
 use App\Models\User;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
@@ -241,13 +242,35 @@ class StaffController extends Controller
         $token = Password::createToken($staff);
         
         // Generate the invite link (you can customize this based on your frontend URL)
-        $inviteLink = config('app.frontend_url', 'http://localhost:3000') . '/reset-password?token=' . $token . '&email=' . urlencode($staff->email);
+        $inviteLink = config('app.frontend_url', 'http://localhost:3000') . '/reset-password?token=' . $token . '&email=' . urlencode($staff->email) . '&role=staff';
         
         // Send the email
         Mail::to($staff->email)->send(new StaffInvitation($staff, $employer, $inviteLink));
         
         // Update invitation status
         $staff->update(['invitation_status' => 'Invited']);
+
+        try {
+            Notification::notify($staff, [
+                'category' => 'team',
+                'type' => 'team_invite',
+                'title' => 'You were invited to join ' . ($employer?->company_name ?? $employer?->name ?? 'the team'),
+                'body' => 'An invitation email has been sent to ' . $staff->email,
+                'icon' => 'user-plus',
+                'deep_link' => '/reset-password?token=' . $token . '&email=' . urlencode($staff->email) . '&role=staff',
+                'metadata' => ['invited_by' => $request->user()->id, 'employer_id' => $employerId],
+            ]);
+            Notification::notify($request->user(), [
+                'category' => 'team',
+                'type' => 'team_invite_sent',
+                'title' => 'Invitation sent',
+                'body' => 'Invite sent to ' . ($staff->name ?? $staff->email),
+                'icon' => 'mail',
+                'deep_link' => '/team',
+                'metadata' => ['staff_id' => $staff->id],
+            ]);
+        } catch (\Throwable) {
+        }
 
         return $this->sendResponse(['invitation_status' => $staff->invitation_status], "Invitation sent to {$staff->email}");
     }

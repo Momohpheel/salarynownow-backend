@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Employee;
 use App\Http\Controllers\Controller;
 use App\Mail\EmployerRegistered;
 use App\Mail\ProfileCompleted;
+use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Sarepay\SarepayService;
@@ -72,6 +73,32 @@ class RegistrationController extends Controller
         });
 
         Mail::to($user->email)->send(new EmployerRegistered($user));
+
+        try {
+            $admins = User::where('type', User::TYPE_ADMIN)->pluck('id')->all();
+            $body = ($user->name ?? 'A new employer') . ' registered — awaiting review. Email: ' . ($user->email ?? 'none');
+            foreach (array_values(array_unique(array_filter(array_map('intval', $admins)))) as $aid) {
+                Notification::notify((int)$aid, [
+                    'category' => 'onboarding',
+                    'type' => 'employer_registered',
+                    'title' => 'New employer registered',
+                    'body' => $body,
+                    'icon' => 'building-2',
+                    'deep_link' => '/admin/employers/' . $user->id,
+                    'metadata' => ['employer_id' => $user->id, 'email' => $user->email],
+                ]);
+            }
+            Notification::notify($user, [
+                'category' => 'onboarding',
+                'type' => 'employer_welcome',
+                'title' => 'Welcome to Salary Now',
+                'body' => 'Your registration was created. Complete your profile to activate payouts.',
+                'icon' => 'party-popper',
+                'deep_link' => '/onboarding',
+                'metadata' => ['employer_id' => $user->id],
+            ]);
+        } catch (\Throwable) {
+        }
 
         return $this->sendResponse($user, 'Employee registered successfully', true, 201);
     }

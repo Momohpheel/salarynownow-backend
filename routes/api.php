@@ -28,6 +28,9 @@ use App\Http\Controllers\Modules\Admin\SettingsController as AdminSettingsContro
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
+use App\Http\Controllers\Modules\Partner\DashboardController as PartnerDashboardController;
+use App\Http\Controllers\Modules\Partner\NotificationController as PartnerNotificationController;
+use App\Http\Controllers\Modules\Partner\MarketplaceEnquiryController as PartnerMarketplaceEnquiryController;
 use App\Http\Controllers\Modules\Staff\LoginController as StaffLoginController;
 use App\Http\Controllers\Modules\Staff\ForgotPasswordController as StaffForgotPasswordController;
 use App\Http\Controllers\Modules\Staff\VerifyOtpController as StaffVerifyOtpController;
@@ -36,6 +39,8 @@ use App\Http\Controllers\Modules\Staff\DashboardController as StaffDashboardCont
 use App\Http\Controllers\Modules\Staff\ProfileController as StaffProfileController;
 use App\Http\Controllers\Modules\Staff\PayslipController as StaffPayslipController;
 use App\Http\Controllers\Modules\Staff\SalaryAdvanceController as StaffSalaryAdvanceController;
+use App\Http\Controllers\Modules\Staff\MarketplaceEnquiryController as StaffMarketplaceEnquiryController;
+use App\Http\Controllers\Modules\Employee\MarketplaceEnquiryController as EmployeeMarketplaceEnquiryController;
 use App\Http\Controllers\Modules\Employee\ReportController as EmployeeReportController;
 use App\Http\Controllers\Modules\Employee\NotificationController as EmployeeNotificationController;
 use App\Http\Controllers\Modules\Admin\NotificationController as AdminNotificationController;
@@ -59,8 +64,8 @@ Route::get('/banks', [CommonBankController::class, 'index']);
 Route::post('/webhooks/sarepay', [SarepayWebhookController::class, 'handle']);
 
 // SuperAdmin Module
-Route::post('/superadmin/login', [SuperAdminLoginController::class, 'login']);
-Route::middleware(['auth:sanctum'])->prefix('superadmin')->group(function () {
+Route::post('/superadmin/login', [SuperAdminLoginController::class, 'login'])->middleware('throttle:10,1');
+Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('superadmin')->group(function () {
     Route::get('/dashboard', [SuperAdminDashboardController::class, 'index']);
     Route::get('/merchants', [MerchantController::class, 'index']);
     Route::post('/merchants', [MerchantController::class, 'store']);
@@ -68,35 +73,35 @@ Route::middleware(['auth:sanctum'])->prefix('superadmin')->group(function () {
 });
 
 // Employee Module
-Route::post('/employee/register', [EmployeeRegistrationController::class, 'register']);
-Route::post('/employee/login', [EmployeeLoginController::class, 'login']);
-Route::post('/employee/verify-otp', [EmployeeVerifyOtpController::class, 'verify']);
-Route::post('/employee/resend-otp', [EmployeeResendOtpController::class, 'resend']);
-Route::post('/employee/forgot-password', [EmployeeForgotPasswordController::class, 'sendResetLink']);
-Route::post('/employee/reset-password', [EmployeeForgotPasswordController::class, 'reset']);
+Route::post('/employee/register', [EmployeeRegistrationController::class, 'register'])->middleware('throttle:5,1');
+Route::post('/employee/login', [EmployeeLoginController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/employee/verify-otp', [EmployeeVerifyOtpController::class, 'verify'])->middleware('throttle:8,1');
+Route::post('/employee/resend-otp', [EmployeeResendOtpController::class, 'resend'])->middleware('throttle:5,1');
+Route::post('/employee/forgot-password', [EmployeeForgotPasswordController::class, 'sendResetLink'])->middleware('throttle:5,10');
+Route::post('/employee/reset-password', [EmployeeForgotPasswordController::class, 'reset'])->middleware('throttle:5,10');
 
 // Partner Module
-Route::post('/partner/register', [PartnerRegistrationController::class, 'register']);
-Route::post('/partner/login', [PartnerLoginController::class, 'login']);
-Route::post('/partner/forgot-password', [PartnerForgotPasswordController::class, 'sendResetLink']);
-Route::post('/partner/reset-password', [PartnerForgotPasswordController::class, 'reset']);
+Route::post('/partner/register', [PartnerRegistrationController::class, 'register'])->middleware('throttle:5,1');
+Route::post('/partner/login', [PartnerLoginController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/partner/forgot-password', [PartnerForgotPasswordController::class, 'sendResetLink'])->middleware('throttle:5,10');
+Route::post('/partner/reset-password', [PartnerForgotPasswordController::class, 'reset'])->middleware('throttle:5,10');
 
 // Staff Module
-Route::post('/staff/login', [StaffLoginController::class, 'login']);
-Route::post('/staff/verify-otp', [StaffVerifyOtpController::class, 'verify']);
-Route::post('/staff/resend-otp', [StaffResendOtpController::class, 'resend']);
-Route::post('/staff/forgot-password', [StaffForgotPasswordController::class, 'sendResetLink']);
-Route::post('/staff/reset-password', [StaffForgotPasswordController::class, 'reset']);
+Route::post('/staff/login', [StaffLoginController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/staff/verify-otp', [StaffVerifyOtpController::class, 'verify'])->middleware('throttle:8,1');
+Route::post('/staff/resend-otp', [StaffResendOtpController::class, 'resend'])->middleware('throttle:5,1');
+Route::post('/staff/forgot-password', [StaffForgotPasswordController::class, 'sendResetLink'])->middleware('throttle:5,10');
+Route::post('/staff/reset-password', [StaffForgotPasswordController::class, 'reset'])->middleware('throttle:5,10');
 
 // Admin Module
-Route::post('/admin/login', [AdminLoginController::class, 'login']);
+Route::post('/admin/login', [AdminLoginController::class, 'login'])->middleware('throttle:10,1');
 
 // Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [EmployeeLoginController::class, 'logout']); 
 
     // Admin Protected Routes
-    Route::middleware(['auth:sanctum'])->prefix('admin')->group(function () {
+    Route::middleware(['ensure.user.type:admin,super_admin'])->prefix('admin')->group(function () {
         Route::get('/dashboard', [AdminDashboardController::class, 'index']);
         Route::get('/employees', [AdminEmployeeController::class, 'index']);
         Route::get('/kyb-reviews', [AdminEmployeeController::class, 'kybReviews']);
@@ -133,8 +138,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllAsRead']);
     });
 
+    // Partner Protected Routes
+    Route::prefix('partner')->middleware(['ensure.user.type:partner'])->group(function () {
+        Route::post('/logout', [PartnerLoginController::class, 'logout']);
+        Route::get('/me', [PartnerDashboardController::class, 'me']);
+        Route::get('/dashboard', [PartnerDashboardController::class, 'dashboard']);
+
+        // Notifications
+        Route::get('/notifications', [PartnerNotificationController::class, 'index']);
+        Route::post('/notifications/{id}/read', [PartnerNotificationController::class, 'markAsRead']);
+        Route::post('/notifications/read-all', [PartnerNotificationController::class, 'markAllAsRead']);
+
+        // Marketplace enquiries
+        Route::get('/enquiries', [PartnerMarketplaceEnquiryController::class, 'index']);
+        Route::get('/enquiries/{id}', [PartnerMarketplaceEnquiryController::class, 'show']);
+        Route::post('/enquiries/{id}/reply', [PartnerMarketplaceEnquiryController::class, 'reply']);
+    });
+
     // Staff Protected Routes
-    Route::prefix('staff')->group(function () {
+    Route::prefix('staff')->middleware(['ensure.user.type:staff'])->group(function () {
         Route::get('/dashboard', [StaffDashboardController::class, 'index']);
         Route::get('/profile', [StaffProfileController::class, 'show']);
         Route::post('/bank/verify', [StaffProfileController::class, 'verifyBank']);
@@ -143,6 +165,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/payslips/{id}/download', [StaffPayslipController::class, 'download']);
         Route::get('/salary-advance/eligibility', [StaffSalaryAdvanceController::class, 'eligibility']);
         Route::post('/salary-advance', [StaffSalaryAdvanceController::class, 'store']);
+        Route::post('/marketplace-enquiry', [StaffMarketplaceEnquiryController::class, 'store']);
+        Route::get('/marketplace-enquiries', [StaffMarketplaceEnquiryController::class, 'index']);
     });
 
     Route::prefix('employee')->group(function () {
@@ -164,6 +188,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Salary Advances
         Route::get('/salary-advances', [EmployeeSalaryAdvanceController::class, 'index']);
         Route::get('/salary-advances/{salary_advance}', [EmployeeSalaryAdvanceController::class, 'show']);
+        Route::post('/salary-advances/{salary_advance}/approve', [EmployeeSalaryAdvanceController::class, 'approve']);
+        Route::post('/salary-advances/{salary_advance}/reject', [EmployeeSalaryAdvanceController::class, 'reject']);
 
         // Payroll History & Creation
         Route::get('/payrolls', [EmployeePayrollController::class, 'index']);
@@ -215,6 +241,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/notifications', [EmployeeNotificationController::class, 'index']);
         Route::post('/notifications/{id}/read', [EmployeeNotificationController::class, 'markAsRead']);
         Route::post('/notifications/read-all', [EmployeeNotificationController::class, 'markAllAsRead']);
+
+        // Marketplace Enquiries
+        Route::post('/marketplace-enquiry', [EmployeeMarketplaceEnquiryController::class, 'store']);
+        Route::get('/marketplace-enquiries', [EmployeeMarketplaceEnquiryController::class, 'index']);
         }); // close ensure.employer.role middleware group
     });
 });

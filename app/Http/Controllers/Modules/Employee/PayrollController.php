@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\DeductionType;
+use App\Models\Notification;
 use App\Models\Payroll;
 use App\Models\PayrollUploadFlag;
 use App\Models\Payslip;
@@ -1117,6 +1118,19 @@ class PayrollController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        try {
+            Notification::notify($actor, [
+                'category' => 'payroll_flag',
+                'type' => 'flag_approved',
+                'title' => 'Flagged payroll row approved',
+                'body' => 'Payroll flag review recorded (approved)',
+                'icon' => 'check-square',
+                'deep_link' => '/payroll/upload',
+                'metadata' => ['flag_id' => $flag->id],
+            ]);
+        } catch (\Throwable) {
+        }
+
         return $this->sendResponse($flag, 'Flagged row approved');
     }
 
@@ -1143,6 +1157,19 @@ class PayrollController extends Controller
             'reviewed_by' => $actor->id,
             'reviewed_at' => now(),
         ]);
+
+        try {
+            Notification::notify($actor, [
+                'category' => 'payroll_flag',
+                'type' => 'flag_rejected',
+                'title' => 'Flagged payroll row rejected',
+                'body' => 'Payroll flag review recorded (rejected)',
+                'icon' => 'x-square',
+                'deep_link' => '/payroll/upload',
+                'metadata' => ['flag_id' => $flag->id],
+            ]);
+        } catch (\Throwable) {
+        }
 
         return $this->sendResponse($flag, 'Flagged row rejected');
     }

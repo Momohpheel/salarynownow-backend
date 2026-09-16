@@ -52,10 +52,23 @@ class ProcessPayroll extends Command
         //$disbursementCharge = Charge::where('name', 'disbursement')->first();
 
         foreach ($payrolls as $payroll) {
-            $this->info("Processing payroll ID: {$payroll->id} for employer: {$payroll->user->name}");
-            
+            // Guard: orphan payroll (user relationship missing. Skip gracefully so other payrolls keep processing.
+            $employer = $payroll->user;
+            $employerName = $employer?->name ?? 'Unknown Employer';
+            if (! $employer) {
+                $this->warn("Skipping payroll ID: {$payroll->id} — no employer user (orphan record).");
+                try {
+                    $payroll->update([
+                        'status' => Payroll::STATUS_FAILED,
+                    ]);
+                } catch (\Throwable) {
+                }
+                continue;
+            }
+            $this->info("Processing payroll ID: {$payroll->id} for employer: {$employerName}");
+
             $payroll->update(['status' => Payroll::STATUS_PROCESSING]);
-            $employerWallet = $payroll->user->wallet;
+            $employerWallet = $employer->wallet;
             $availableBalance = (float) ($employerWallet?->balance ?? 0);
             $hasFailures = false;
 
@@ -102,6 +115,25 @@ class ProcessPayroll extends Command
                         "Salary for {$payroll->description}"
                     );
 
+                    // Null-safe Sarepay response status extraction
+                    // Expected: {success: true, data: {status: "SUCCESS"}}, but accept any shape.
+                    if (is_array($response)) {
+                        $rawStatus = $response['data']['status']
+                            ?? $response['status']
+                            ?? $response['data_status']
+                            ?? null;
+                    } elseif (is_object($response)) {
+                        $rawStatus = data_get($response, 'data.status')
+                            ?? data_get($response, 'status')
+                            ?? data_get($response, 'data_status')
+                            ?? null;
+                    } else {
+                        $rawStatus = null;
+                    }
+                    $transferStatus = is_string($rawStatus) && $rawStatus !== ''
+                        ? strtolower($rawStatus)
+                        : Transaction::STATUS_PENDING;
+
                     // Create transaction record
                     Transaction::create([
                         'user_id' => $staff->id,
@@ -109,7 +141,7 @@ class ProcessPayroll extends Command
                         'payslip_id' => $payslip->id,
                         'reference' => $reference,
                         'amount' => $payslip->net_salary,
-                        'status' => strtolower($response->data->status),
+                        'status' => $transferStatus,
                         'metadata' => (array) $response,
                     ]);
 
@@ -137,6 +169,27 @@ class ProcessPayroll extends Command
 
                     if ($payslip->user?->email) {
                         Mail::to($payslip->user->email)->send(new PayslipMail($payslip));
+                    }
+
+                    try {
+                        if ($payslip->user) {
+                            $net = (float)$payslip->net_salary;
+                            Notification::notify($payslip->user, [
+                                'category' => 'payroll',
+                                'type' => 'payslip_disbursed',
+                                'title' => 'Salary paid',
+                                'body' => "Your salary for {$payroll->period_label} has been disbursed — ₦" . number_format($net, 2),
+                                'icon' => 'banknote',
+                                'deep_link' => '/my-pay/payslips/' . ($payslip->id ?? ''),
+                                'metadata' => [
+                                    'payroll_id' => $payroll->id,
+                                    'payslip_id' => $payslip->id,
+                                    'period' => $payroll->period_label,
+                                    'amount' => $net,
+                                ],
+                            ]);
+                        }
+                    } catch (\Throwable) {
                     }
 
                 } catch (\Exception $e) {

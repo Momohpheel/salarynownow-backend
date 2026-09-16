@@ -47,6 +47,16 @@ class ProfileController extends Controller
             'bank_code' => 'required|string',
         ]);
 
+        $user = $request->user();
+        $existing = (string)($user->account_number ?? '');
+        if ($existing !== '' && trim($existing) !== trim($request->account_number)) {
+            return $this->sendError(
+                'For security, your account number can only be changed by your employer or an admin.',
+                null,
+                403,
+            );
+        }
+
         $result = $this->sarepayService->validateAccount(
             $request->account_number,
             $request->bank_code
@@ -64,9 +74,20 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+        $existing = (string)($user->account_number ?? '');
+        $incoming = trim($request->account_number);
+
+        if ($existing !== '' && $existing !== $incoming) {
+            return $this->sendError(
+                'For security, your account number can only be changed by your employer or an admin.',
+                null,
+                403,
+            );
+        }
+
         $user->update([
             'bank_name' => $request->bank_name,
-            'account_number' => $request->account_number,
+            'account_number' => $existing !== '' ? $existing : $incoming,
             'account_name' => $request->account_name,
         ]);
 

@@ -120,9 +120,15 @@ class PayslipController extends Controller
         return $this->sendResponse($data, 'Payslip history retrieved successfully');
     }
 
-    public function download($id)
+    public function download(Request $request, $id)
     {
+        $user = $request->user();
         $payslip = Payslip::with(['user.parent', 'deductions'])->findOrFail($id);
+
+        if ((int) $payslip->user_id !== (int) $user->id) {
+            abort(403, __('Forbidden.'));
+        }
+
         $deductionBreakdown = $this->buildLegacyAwareDeductionBreakdown($payslip);
         $bonusBreakdown = $this->buildBonusBreakdown($payslip);
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.payslip', compact('payslip', 'deductionBreakdown', 'bonusBreakdown'));

@@ -26,9 +26,9 @@ class ReportController extends Controller
         $endCarbon = Carbon::parse($endDate)->endOfDay();
 
         $payrolls = Payroll::where('user_id', $employerId)
-            ->whereBetween('processed_at', [$startCarbon, $endCarbon])
+            ->whereBetween(DB::raw('COALESCE(processed_at, created_at)'), [$startCarbon, $endCarbon])
             ->with('payslips')
-            ->orderBy('processed_at', 'desc')
+            ->orderByRaw('COALESCE(processed_at, created_at) desc')
             ->get();
 
         $totalRuns = $payrolls->count();
@@ -46,13 +46,13 @@ class ReportController extends Controller
         }
 
         $monthlySpendAgg = Payroll::where('user_id', $employerId)
-            ->whereBetween('processed_at', [$startCarbon, $endCarbon])
+            ->whereBetween(DB::raw('COALESCE(processed_at, created_at)'), [$startCarbon, $endCarbon])
             ->select(
-                DB::raw('DATE_FORMAT(processed_at, "%b %Y") as month'),
+                DB::raw('DATE_FORMAT(COALESCE(processed_at, created_at), "%b %Y") as month'),
                 DB::raw('SUM(amount) as total')
             )
             ->groupBy('month')
-            ->orderByRaw('MIN(processed_at) asc')
+            ->orderByRaw('MIN(COALESCE(processed_at, created_at)) asc')
             ->get()
             ->keyBy('month');
 
@@ -76,10 +76,11 @@ class ReportController extends Controller
             ],
             'monthly_spend_chart' => $monthlySpend,
             'payroll_runs' => $payrolls->map(function($p) {
+                $effective = $p->processed_at ?? $p->created_at;
                 return [
                     'id' => $p->id,
-                    'month' => $p->processed_at->format('M Y'),
-                    'pay_date' => $p->processed_at->format('d M Y'),
+                    'month' => $effective->format('M Y'),
+                    'pay_date' => $p->processed_at ? $p->processed_at->format('d M Y') : 'Pending',
                     'staff_count' => $p->staff_count,
                     'gross_amount' => '₦' . number_format($p->payslips->sum('gross_salary'), 2),
                     'deductions' => '₦' . number_format($p->payslips->sum('other_deductions') + $p->payslips->sum('pension') + $p->payslips->sum('tax_deduction') + $p->payslips->sum('nhf'), 2),
@@ -106,7 +107,7 @@ class ReportController extends Controller
 
         $query = Payslip::whereHas('payroll', function($q) use ($employerId, $startCarbon, $endCarbon) {
             $q->where('user_id', $employerId)
-              ->whereBetween('processed_at', [$startCarbon, $endCarbon]);
+              ->whereBetween(DB::raw('COALESCE(processed_at, created_at)'), [$startCarbon, $endCarbon]);
         })->with(['user', 'payroll']);
 
         if ($department && $department !== 'All Departments') {
@@ -115,7 +116,7 @@ class ReportController extends Controller
             });
         }
 
-        $payslips = $query->orderBy('created_at', 'desc')->get();
+        $payslips = $query->orderByRaw('(SELECT COALESCE(pr.processed_at, pr.created_at) FROM payrolls pr WHERE pr.id = payslips.payroll_id) desc')->get();
 
         $advanceDeductionLookup = collect([]);
         try {
@@ -150,6 +151,7 @@ class ReportController extends Controller
                 'paye' => '₦' . number_format($paye, 2),
                 'pension' => '₦' . number_format((float)($p->pension ?? 0) + (float)($p->pension_employer ?? 0), 2),
                 'advance_ded' => $advanceAmount > 0 ? ('₦' . number_format($advanceAmount, 2)) : 'NO',
+                'advance_ded_raw' => $advanceAmount,
                 'net_pay' => '₦' . number_format($p->net_salary, 2),
                 '_raw' => [
                     'gross_pay' => (float)$p->gross_salary,
