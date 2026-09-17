@@ -51,6 +51,9 @@ use Laravel\Sanctum\HasApiTokens;
     'salary',
     'account_number',
     'bvn',
+    'otp',
+    'otp_expires_at',
+    'otp_attempts',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable

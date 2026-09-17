@@ -19,8 +19,9 @@ class LoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('type', User::TYPE_STAFF)
-            ->where('email', $request->email)
+        $email = mb_strtolower(trim($request->email));
+        $user  = User::where('type', User::TYPE_STAFF)
+            ->whereRaw('LOWER(email) = ?', [$email])
             ->first();
 
         if ($user && $user->isLockedOut()) {
@@ -56,11 +57,11 @@ class LoginController extends Controller
 
         $otp = random_int(100000, 999999);
 
-        $user->update([
-            'otp' => $otp,
+        $user->forceFill([
+            'otp'            => (int) $otp,
             'otp_expires_at' => now()->addMinutes(5),
-            'otp_attempts' => 0,
-        ]);
+            'otp_attempts'   => 0,
+        ])->save();
 
         Mail::to($user->email)->send(new OtpMail($otp));
 

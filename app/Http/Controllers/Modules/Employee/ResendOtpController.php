@@ -17,7 +17,9 @@ class ResendOtpController extends Controller
             'email' => ['required', 'string', 'email'],
         ]);
 
-        $user = User::employee()->where('email', $request->email)->first();
+        $user = User::whereIn('type', [User::TYPE_EMPLOYEE, User::TYPE_ADMIN])
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower(trim($request->email))])
+            ->first();
 
         if (! $user) {
             throw ValidationException::withMessages([
@@ -27,11 +29,11 @@ class ResendOtpController extends Controller
 
         $otp = random_int(100000, 999999);
 
-        $user->update([
-            'otp' => $otp,
+        $user->forceFill([
+            'otp'            => (int) $otp,
             'otp_expires_at' => now()->addMinutes(5),
-            'otp_attempts' => 0,
-        ]);
+            'otp_attempts'   => 0,
+        ])->save();
 
         Mail::to($user->email)->send(new OtpMail($otp));
 

@@ -15,30 +15,33 @@ class VerifyOtpController extends Controller
     {
         $request->validate([
             'email' => ['required', 'string', 'email'],
-            'otp' => ['required', 'string', 'digits:6'],
+            'otp'   => ['required', 'string', 'digits:6'],
         ]);
 
-        // $user = User::staff()->where('email', $request->email)->first();
-
-         $user = User::where('type', User::TYPE_STAFF)
-            ->where('email', $request->email)
+        $email = mb_strtolower(trim($request->email));
+        $user  = User::where('type', User::TYPE_STAFF)
+            ->whereRaw('LOWER(email) = ?', [$email])
             ->first();
-            
+
         if (! $user) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.failed')],
             ]);
         }
 
-        if ($user->otp_attempts >= 5) {
+        if ((int) ($user->otp_attempts ?? 0) >= 5) {
             throw ValidationException::withMessages([
                 'otp' => ['Too many invalid OTP attempts. Please try again later.'],
             ]);
         }
 
-        if (! $user->otp || $user->otp !== $request->otp || $user->otp_expires_at < now()) {
-            $user->increment('otp_attempts');
-            Log::warning('Invalid OTP attempt for staff user: ' . $user->email);
+        $incoming = str_pad(trim($request->otp), 6, '0', STR_PAD_LEFT);
+        $stored   = str_pad((string) ((int) ($user->otp ?? 0)), 6, '0', STR_PAD_LEFT);
+        $expired  = $user->otp_expires_at && $user->otp_expires_at < now();
+
+        if (! $user->otp || $stored !== $incoming || $expired) {
+            try { $user->increment('otp_attempts'); } catch (\Throwable) { }
+            Log::warning('Invalid OTP attempt for staff user: ' . $user->email . ' stored=' . ($user->otp ?? 'NULL') . ' incoming=' . $request->otp . ' expired=' . ($expired ? 'YES' : 'no'));
 
             throw ValidationException::withMessages([
                 'otp' => [__('auth.invalid_otp')],
@@ -47,11 +50,11 @@ class VerifyOtpController extends Controller
 
         Log::info('OTP verified successfully for staff user: ' . $user->email);
 
-        $user->update([
-            'otp' => null,
+        $user->forceFill([
+            'otp'            => null,
             'otp_expires_at' => null,
-            'otp_attempts' => null,
-        ]);
+            'otp_attempts'   => null,
+        ])->save();
 
         $token = $user->createToken('staff-token')->plainTextToken;
 
