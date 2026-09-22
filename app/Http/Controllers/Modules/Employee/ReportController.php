@@ -228,7 +228,7 @@ class ReportController extends Controller
             'advances' => $advances->map(function($a) {
                 $issueDate = $a->created_at;
                 $dueDate = $a->due_date ? Carbon::parse($a->due_date) : $issueDate->copy()->addMonth()->day(min(25, $issueDate->daysInMonth));
-                $repaidAmount = $a->status === 'repaid' ? (float)($a->amount_repaid ?? $a->amount) : (float)($a->amount_repaid ?? 0);
+                $repaidAmount = $a->status === 'repaid' || $a->status === 'completed' ? (float) $a->amount : 0.0;
                 $outstandingAmount = max(0, (float)$a->amount - $repaidAmount);
                 return [
                     'staff_name' => $a->staff->name ?? 'Unknown',

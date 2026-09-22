@@ -37,10 +37,11 @@ class DashboardController extends Controller
             ->distinct()
             ->count(DB::raw("COALESCE((metadata->>'$.employer_id'), submitter_id)"));
 
-        $revenueThisMonthRaw = WalletLog::where('user_id', $partnerId)
-            ->where('type', 'credit')
-            ->where('created_at', '>=', $startOfMonth)
-            ->sum('amount');
+        $revenueThisMonthRaw = (float) WalletLog::where('wallet_logs.type', 'credit')
+            ->where('wallet_logs.created_at', '>=', $startOfMonth)
+            ->join('wallets', 'wallets.id', '=', 'wallet_logs.wallet_id')
+            ->where('wallets.user_id', $partnerId)
+            ->sum('wallet_logs.amount');
         $revenueThisMonth = '₦' . number_format($revenueThisMonthRaw, 0);
 
         $settledPayouts = (int) DB::table('transactions')

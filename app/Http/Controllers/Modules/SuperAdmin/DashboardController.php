@@ -80,31 +80,32 @@ class DashboardController extends Controller
         $advOpen30d = (clone $advOpen)->where('created_at', '>=', now()->subDays(30));
 
         $advancesOutstandingCount = (clone $advOpen)->count();
-        $advancesOutstandingSum   = (float) (clone $advOpen)->sum(DB::raw('amount - COALESCE(amount_repaid, 0)'));
+        $advancesOutstandingSum   = (float) (clone $advOpen)->sum('amount');
         $advancesTotalRequested   = (float) (clone $advAll)->sum('amount');
         $advancesTotalDisbursed   = (float) (clone $advAll)->whereIn('status', ['disbursed', 'partial', 'repaid', 'completed'])->sum('amount');
+        $advancesRepaidSum        = (float) (clone $advAll)->whereIn('status', ['repaid', 'completed'])->sum('amount');
         $advancesNew7d            = (int) (clone $advAll)->where('created_at', '>=', now()->subDays(7))->count();
         $advancesPendingApproval  = (int) (clone $advAll)->whereIn('status', ['pending', 'submitted'])->count();
 
         // ====================================================
-        // 4. PLATFORM REVENUE (from WalletLog fees if present; fallback gross*% estimate)
+        // 4. PLATFORM REVENUE (from WalletLog credit-type fees if present; fallback gross*% estimate)
         // ====================================================
-        $feeCredits = (float) WalletLog::whereIn('direction', ['credit', 'in'])
+        $feeCredits = (float) WalletLog::where('type', 'credit')
             ->where(function ($q) {
-                $q->where('entry_type', 'like', '%fee%')
-                  ->orWhere('entry_type', 'like', '%charge%')
-                  ->orWhere('entry_type', 'like', '%revenue%')
-                  ->orWhere('description', 'like', '%fee%')
-                  ->orWhere('description', 'like', '%charge%');
+                $q->where('description', 'like', '%fee%')
+                  ->orWhere('description', 'like', '%charge%')
+                  ->orWhere('description', 'like', '%revenue%')
+                  ->orWhere('description', 'like', '%commission%');
             })->sum('amount');
 
         $useRealRevenue = $feeCredits > 0;
         $revenueMonth = $useRealRevenue
-            ? (float) WalletLog::whereIn('direction', ['credit', 'in'])
+            ? (float) WalletLog::where('type', 'credit')
                 ->where(function ($q) {
-                    $q->where('entry_type', 'like', '%fee%')
-                      ->orWhere('entry_type', 'like', '%charge%')
-                      ->orWhere('entry_type', 'like', '%revenue%');
+                    $q->where('description', 'like', '%fee%')
+                      ->orWhere('description', 'like', '%charge%')
+                      ->orWhere('description', 'like', '%revenue%')
+                      ->orWhere('description', 'like', '%commission%');
                 })
                 ->whereBetween('created_at', [
                     now()->startOfMonth()->toDateTimeString(),
@@ -113,11 +114,12 @@ class DashboardController extends Controller
             : round($grossPayrollMonth * 0.025, 2);
 
         $revenueYtd = $useRealRevenue
-            ? (float) WalletLog::whereIn('direction', ['credit', 'in'])
+            ? (float) WalletLog::where('type', 'credit')
                 ->where(function ($q) {
-                    $q->where('entry_type', 'like', '%fee%')
-                      ->orWhere('entry_type', 'like', '%charge%')
-                      ->orWhere('entry_type', 'like', '%revenue%');
+                    $q->where('description', 'like', '%fee%')
+                      ->orWhere('description', 'like', '%charge%')
+                      ->orWhere('description', 'like', '%revenue%')
+                      ->orWhere('description', 'like', '%commission%');
                 })
                 ->whereBetween('created_at', [
                     now()->startOfYear()->toDateTimeString(),
@@ -165,11 +167,12 @@ class DashboardController extends Controller
             ])->sum('amount');
 
             $rev = $useRealRevenue
-                ? (float) WalletLog::whereIn('direction', ['credit', 'in'])
+                ? (float) WalletLog::where('type', 'credit')
                     ->where(function ($q) {
-                        $q->where('entry_type', 'like', '%fee%')
-                          ->orWhere('entry_type', 'like', '%charge%')
-                          ->orWhere('entry_type', 'like', '%revenue%');
+                        $q->where('description', 'like', '%fee%')
+                          ->orWhere('description', 'like', '%charge%')
+                          ->orWhere('description', 'like', '%revenue%')
+                          ->orWhere('description', 'like', '%commission%');
                     })
                     ->whereBetween('created_at', [
                         $monthStart->toDateTimeString(),
