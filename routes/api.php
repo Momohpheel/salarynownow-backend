@@ -25,6 +25,8 @@ use App\Http\Controllers\Modules\Admin\ChargeController as AdminChargeController
 use App\Http\Controllers\Modules\Admin\TransactionController as AdminTransactionController;
 use App\Http\Controllers\Modules\Admin\TeamController as AdminTeamController;
 use App\Http\Controllers\Modules\Admin\SettingsController as AdminSettingsController;
+use App\Http\Controllers\Modules\SuperAdmin\WalletController as SuperAdminWalletController;
+use App\Http\Controllers\Modules\SuperAdmin\PayrollController as SuperAdminPayrollController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
@@ -82,6 +84,12 @@ Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('sup
     Route::post('/merchants/{merchant}/suspend', [MerchantController::class, 'suspend']);
     Route::post('/merchants/{merchant}/activate', [MerchantController::class, 'activate']);
     Route::post('/merchants/{merchant}/update', [MerchantController::class, 'update']);
+
+    // Wallet oversight (full-platform scope)
+    Route::get('/wallets', [SuperAdminWalletController::class, 'index']);
+
+    // Payroll oversight (full-platform scope)
+    Route::get('/payrolls', [SuperAdminPayrollController::class, 'index']);
 });
 
 // Employee Module
