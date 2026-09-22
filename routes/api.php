@@ -148,6 +148,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/notifications', [AdminNotificationController::class, 'index']);
         Route::post('/notifications/{id}/read', [AdminNotificationController::class, 'markAsRead']);
         Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllAsRead']);
+
+        // Pension oversight
+        Route::get('/pension/contributions', [\App\Http\Controllers\Modules\Admin\PensionController::class, 'index']);
+        Route::post('/pension/remit', [\App\Http\Controllers\Modules\Admin\PensionController::class, 'remit']);
+
+        // Partner accounts
+        Route::get('/partners', [\App\Http\Controllers\Modules\Admin\PartnerController::class, 'index']);
+        Route::get('/partners/{partner}', [\App\Http\Controllers\Modules\Admin\PartnerController::class, 'show']);
+        Route::post('/partners/{partner}/approve', [\App\Http\Controllers\Modules\Admin\PartnerController::class, 'approve']);
+        Route::post('/partners/{partner}/reject', [\App\Http\Controllers\Modules\Admin\PartnerController::class, 'reject']);
+        Route::post('/partners/{partner}/toggle', [\App\Http\Controllers\Modules\Admin\PartnerController::class, 'toggle']);
+        Route::post('/partners/{partner}/revenue-share', [\App\Http\Controllers\Modules\Admin\PartnerController::class, 'updateRevenue']);
+
+        // Marketplace oversight
+        Route::get('/marketplace', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'index']);
+        Route::post('/marketplace/partners/{partner}/approve', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'approvePartner']);
+        Route::post('/marketplace/partners/{partner}/reject', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'rejectPartner']);
+        Route::post('/marketplace/offers/{offerId}', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'updateOffer']);
+        Route::post('/marketplace/offers-bulk-suspend', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'bulkSuspendOffers']);
+        Route::get('/marketplace/platform-settings', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'getPlatformSettings']);
+        Route::post('/marketplace/platform-settings', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'savePlatformSettings']);
+        Route::post('/marketplace/fire-trigger', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'fireTrigger']);
     });
 
     // Partner Protected Routes
