@@ -53,7 +53,8 @@ class RequeryTransactions extends Command
                     // Update status based on Sarepay response
                     // Assuming 'success' means disbursed
                     if (strtolower($response->data->status) === 'Successful' || strtolower($response->data->status) === 'completed') {
-                        $transaction->update(['status' => Transaction::STATUS_SUCCESS]);
+                        $transaction->status = Transaction::STATUS_SUCCESS;
+                        $transaction->save();
                         
                         // Update related payslip
                         $transaction->payslip->update(['status' => Payslip::STATUS_DISBURSED]);

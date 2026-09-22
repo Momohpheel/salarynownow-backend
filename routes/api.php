@@ -66,10 +66,22 @@ Route::post('/webhooks/sarepay', [SarepayWebhookController::class, 'handle']);
 // SuperAdmin Module
 Route::post('/superadmin/login', [SuperAdminLoginController::class, 'login'])->middleware('throttle:10,1');
 Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('superadmin')->group(function () {
+    // Auth / profile
+    Route::post('/logout', [SuperAdminLoginController::class, 'logout']);
+    Route::get('/me', fn (\Illuminate\Http\Request $r) => (new \App\Http\Controllers\Controller())->sendResponse($r->user()->makeHidden(['password', 'remember_token']), 'OK'));
+
+    // Dashboard + overview
     Route::get('/dashboard', [SuperAdminDashboardController::class, 'index']);
+
+    // Merchants (TYPE_ADMIN = merchant / platform operator)
     Route::get('/merchants', [MerchantController::class, 'index']);
     Route::post('/merchants', [MerchantController::class, 'store']);
     Route::get('/merchants/{merchant}', [MerchantController::class, 'show']);
+    Route::post('/merchants/{merchant}/approve', [MerchantController::class, 'approve']);
+    Route::post('/merchants/{merchant}/reject', [MerchantController::class, 'reject']);
+    Route::post('/merchants/{merchant}/suspend', [MerchantController::class, 'suspend']);
+    Route::post('/merchants/{merchant}/activate', [MerchantController::class, 'activate']);
+    Route::post('/merchants/{merchant}/update', [MerchantController::class, 'update']);
 });
 
 // Employee Module

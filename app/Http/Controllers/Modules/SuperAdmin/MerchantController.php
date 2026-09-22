@@ -100,4 +100,94 @@ class MerchantController extends Controller
 
         return $this->sendResponse($merchant, 'Merchant details retrieved');
     }
+
+    public function approve(Request $request, User $merchant)
+    {
+        if ($merchant->type !== User::TYPE_ADMIN) {
+            return $this->sendError('User is not a merchant', null, 404);
+        }
+
+        $merchant->forceFill([
+            'is_approved' => 1,
+            'status'      => $request->input('status', 'active'),
+        ])->save();
+
+        return $this->sendResponse($merchant, 'Merchant approved');
+    }
+
+    public function reject(Request $request, User $merchant)
+    {
+        if ($merchant->type !== User::TYPE_ADMIN) {
+            return $this->sendError('User is not a merchant', null, 404);
+        }
+
+        $merchant->forceFill([
+            'is_approved'    => 0,
+            'status'         => 'rejected',
+            'internal_notes' => $request->input('reason', $merchant->internal_notes),
+        ])->save();
+
+        return $this->sendResponse($merchant, 'Merchant rejected');
+    }
+
+    public function suspend(Request $request, User $merchant)
+    {
+        if ($merchant->type !== User::TYPE_ADMIN) {
+            return $this->sendError('User is not a merchant', null, 404);
+        }
+
+        $merchant->forceFill([
+            'status'         => 'suspended',
+            'is_active'      => 0,
+            'internal_notes' => $request->input('reason', $merchant->internal_notes),
+        ])->save();
+
+        return $this->sendResponse($merchant, 'Merchant suspended');
+    }
+
+    public function activate(Request $request, User $merchant)
+    {
+        if ($merchant->type !== User::TYPE_ADMIN) {
+            return $this->sendError('User is not a merchant', null, 404);
+        }
+
+        $merchant->forceFill([
+            'status'      => $request->input('status', 'active'),
+            'is_active'   => 1,
+            'is_approved' => 1,
+        ])->save();
+
+        return $this->sendResponse($merchant, 'Merchant activated');
+    }
+
+    public function update(Request $request, User $merchant)
+    {
+        if ($merchant->type !== User::TYPE_ADMIN) {
+            return $this->sendError('User is not a merchant', null, 404);
+        }
+
+        $validated = $request->validate([
+            'name'             => ['sometimes', 'string', 'max:255'],
+            'contact_person'   => ['sometimes', 'string', 'max:255'],
+            'company_name'     => ['sometimes', 'string', 'max:255'],
+            'phone_number'     => ['sometimes', 'string', 'max:20'],
+            'state'            => ['sometimes', 'string', 'max:255'],
+            'revenue_share'    => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'plan_tier'        => ['sometimes', 'string', 'max:64'],
+            'internal_notes'   => ['sometimes', 'nullable', 'string'],
+            'is_active'        => ['sometimes', 'boolean'],
+            'status'           => ['sometimes', 'string', 'max:32'],
+        ]);
+
+        if (!empty($validated)) {
+            $merchant->forceFill($validated)->save();
+        }
+
+        if ($request->filled('password')) {
+            $request->validate(['password' => ['sometimes', Rules\Password::defaults()]]);
+            $merchant->forceFill(['password' => Hash::make($request->input('password'))])->save();
+        }
+
+        return $this->sendResponse($merchant, 'Merchant updated');
+    }
 }

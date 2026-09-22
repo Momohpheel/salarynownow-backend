@@ -61,4 +61,16 @@ class LoginController extends Controller
             'user' => $user,
         ], 'SuperAdmin login successful');
     }
+
+    public function logout(Request $request)
+    {
+        try {
+            $request->user()?->currentAccessToken()?->delete();
+        } catch (\Throwable) {
+        }
+
+        return $this->sendResponse([
+            'logged_out' => true,
+        ], 'SuperAdmin logged out');
+    }
 }
