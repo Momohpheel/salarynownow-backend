@@ -27,6 +27,12 @@ use App\Http\Controllers\Modules\Admin\TeamController as AdminTeamController;
 use App\Http\Controllers\Modules\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Modules\SuperAdmin\WalletController as SuperAdminWalletController;
 use App\Http\Controllers\Modules\SuperAdmin\PayrollController as SuperAdminPayrollController;
+use App\Http\Controllers\Modules\SuperAdmin\PensionController as SuperAdminPensionController;
+use App\Http\Controllers\Modules\SuperAdmin\AdvancesController as SuperAdminAdvancesController;
+use App\Http\Controllers\Modules\SuperAdmin\PartnersController as SuperAdminPartnersController;
+use App\Http\Controllers\Modules\SuperAdmin\MarketplaceController as SuperAdminMarketplaceController;
+use App\Http\Controllers\Modules\SuperAdmin\LendersController as SuperAdminLendersController;
+use App\Http\Controllers\Modules\SuperAdmin\AnalyticsController as SuperAdminAnalyticsController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
@@ -90,6 +96,40 @@ Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('sup
 
     // Payroll oversight (full-platform scope)
     Route::get('/payrolls', [SuperAdminPayrollController::class, 'index']);
+
+    // Pension oversight (full-platform scope)
+    Route::get('/pension/contributions', [SuperAdminPensionController::class, 'index']);
+    Route::post('/pension/remit', [SuperAdminPensionController::class, 'remit']);
+
+    // Advances oversight (full-platform scope)
+    Route::get('/advances', [SuperAdminAdvancesController::class, 'index']);
+
+    // Partner accounts (full-platform TYPE_PARTNER scope)
+    Route::get('/partners', [SuperAdminPartnersController::class, 'index']);
+    Route::get('/partners/{partner}', [SuperAdminPartnersController::class, 'show']);
+    Route::post('/partners/{partner}/approve', [SuperAdminPartnersController::class, 'approve']);
+    Route::post('/partners/{partner}/reject', [SuperAdminPartnersController::class, 'reject']);
+    Route::post('/partners/{partner}/toggle', [SuperAdminPartnersController::class, 'toggle']);
+    Route::post('/partners/{partner}/revenue-share', [SuperAdminPartnersController::class, 'updateRevenue']);
+
+    // Marketplace oversight (full-platform scope)
+    Route::get('/marketplace', [SuperAdminMarketplaceController::class, 'index']);
+    Route::post('/marketplace/partners/{partner}/approve', [SuperAdminMarketplaceController::class, 'approvePartner']);
+    Route::post('/marketplace/partners/{partner}/reject', [SuperAdminMarketplaceController::class, 'rejectPartner']);
+    Route::post('/marketplace/offers/{offerId}', [SuperAdminMarketplaceController::class, 'updateOffer']);
+    Route::post('/marketplace/offers-bulk-suspend', [SuperAdminMarketplaceController::class, 'bulkSuspendOffers']);
+    Route::get('/marketplace/platform-settings', [SuperAdminMarketplaceController::class, 'getPlatformSettings']);
+    Route::post('/marketplace/platform-settings', [SuperAdminMarketplaceController::class, 'savePlatformSettings']);
+    Route::post('/marketplace/fire-trigger', [SuperAdminMarketplaceController::class, 'fireTrigger']);
+
+    // Lenders management (Settings kv store)
+    Route::get('/lenders', [SuperAdminLendersController::class, 'index']);
+    Route::post('/lenders/{id}/toggle', [SuperAdminLendersController::class, 'toggle']);
+    Route::post('/lenders/{id}/priority', [SuperAdminLendersController::class, 'updatePriority']);
+    Route::post('/lenders', [SuperAdminLendersController::class, 'store']);
+
+    // Analytics (KPI / leaderboards / cohorts / geo / mix / timeline / scatter / funnel)
+    Route::get('/analytics', [SuperAdminAnalyticsController::class, 'index']);
 });
 
 // Employee Module
