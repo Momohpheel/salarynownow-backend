@@ -54,7 +54,7 @@ class ProcessPayroll extends Command
         foreach ($payrolls as $payroll) {
             // Guard: orphan payroll (user relationship missing. Skip gracefully so other payrolls keep processing.
             $employer = $payroll->user;
-            $employerName = $employer?->name ?? 'Unknown Employer';
+            $employerName = $employer?->company_name ?? 'Unknown Employer';
             if (! $employer) {
                 $this->warn("Skipping payroll ID: {$payroll->id} — no employer user (orphan record).");
                 try {
@@ -112,7 +112,7 @@ class ProcessPayroll extends Command
                         $staff->account_number,
                         $bankCode,
                         $payslip->net_salary,
-                        "Salary for {$payroll->description}"
+                        "Salary for {$employerName} - {$payroll->description}"
                     );
 
                     // Null-safe Sarepay response status extraction
@@ -152,7 +152,7 @@ class ProcessPayroll extends Command
                     $employerWallet->logs()->create([
                         'amount' => $payslip->net_salary,
                         'type' => 'debit',
-                        'description' => "Salary payment for {$staff->name} ({$payroll->description})",
+                        'description' => "Salary payment for {$staff->name} — {$employerName} ({$payroll->description})",
                         'balance_before' => $balanceBefore,
                         'balance_after' => (float) $employerWallet->balance,
                         'metadata' => [
