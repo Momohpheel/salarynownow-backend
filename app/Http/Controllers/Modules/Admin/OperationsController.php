@@ -314,15 +314,55 @@ class OperationsController extends Controller
         }
 
         $txnTransform = function ($log) {
+            $desc = (string) ($log->description ?? '');
+            $descL = strtolower($desc);
+            $typeL = strtolower((string) $log->type);
+            $isReversal = $typeL === 'reversal'
+                || str_contains($descL, 'reverse')
+                || str_contains($descL, 'reversal')
+                || str_contains($descL, 'refund for failed');
+            if ($isReversal) {
+                $typeLabel = 'Reversal';
+            } else {
+                if (str_contains($descL, 'topup') || str_contains($descL, 'virtual account') || str_contains($descL, 'fund wallet')) {
+                    $typeLabel = 'Topup';
+                } elseif (str_contains($descL, 'payroll') || $typeL === 'debit' || str_contains($descL, 'payout') || str_contains($descL, 'disburse')) {
+                    $typeLabel = 'Payroll Disbursement';
+                } elseif (str_contains($descL, 'salary advance') || str_contains($descL, 'advance')) {
+                    $typeLabel = 'Advance Disbursement';
+                } elseif (str_contains($descL, 'pension') || str_contains($descL, 'remit')) {
+                    $typeLabel = 'Pension Remittance';
+                } else {
+                    $typeLabel = ucfirst($log->type);
+                }
+            }
+            $metaStatus = strtolower((string) ($log->metadata['status'] ?? ''));
+            if ($metaStatus) {
+                $status = ucfirst($metaStatus);
+            } elseif ($isReversal) {
+                $status = 'Reversed';
+            } else {
+                $status = 'Confirmed';
+            }
             return [
-                'date' => $log->created_at->format('d M Y'),
+                'wallet_log_id' => $log->id,
+                'date' => $log->created_at->format('d M Y, H:i'),
                 'company' => $log->wallet->user->company_name ?? $log->wallet->user->name ?? '—',
-                'type' => ucfirst($log->type),
-                'amount' => '₦' . number_format($log->amount, 2),
-                'status' => 'Confirmed',
+                'company_id' => $log->wallet->user_id,
+                'wallet_id' => $log->wallet_id,
+                'type' => $isReversal ? 'reversal' : (string) $log->type,
+                'type_label' => $typeLabel,
+                'is_reversal' => $isReversal,
+                'amount' => '₦' . number_format((float) $log->amount, 2),
+                'amount_raw' => (float) $log->amount,
+                'status' => $status,
+                'status_raw' => strtolower($status),
                 'reference' => $log->metadata['transaction_reference']
                     ?? $log->metadata['reference']
+                    ?? $log->metadata['failed_reference']
                     ?? '-',
+                'description' => $desc,
+                'can_requery' => in_array(strtolower($status), ['pending', 'processing', 'initiated'], true),
             ];
         };
 
@@ -551,12 +591,19 @@ class OperationsController extends Controller
             ->limit($defaultLimit)
             ->get()
             ->map(function ($log) {
+                $typeL = strtolower((string) $log->type);
+                $descL = strtolower((string) ($log->description ?? ''));
+                $isReversal = $typeL === 'reversal'
+                    || str_contains($descL, 'reverse')
+                    || str_contains($descL, 'reversal')
+                    || str_contains($descL, 'refund for failed');
+                $action = $isReversal ? 'Wallet Reversal' : 'Wallet ' . ucfirst($log->type);
                 return [
                     'time' => $log->created_at->format('d M Y, H:i'),
-                    'action' => 'Wallet ' . ucfirst($log->type),
+                    'action' => $action,
                     'target_type' => 'Wallet',
                     'target' => $log->wallet->user->company_name ?? $log->wallet->user->name ?? '—',
-                    'details' => '₦' . number_format($log->amount, 2) . ' • ' . $log->description,
+                    'details' => '₦' . number_format((float) $log->amount, 2) . ' • ' . ($log->description ?? ''),
                     'timestamp' => $log->created_at,
                 ];
             });

@@ -33,6 +33,7 @@ use App\Http\Controllers\Modules\SuperAdmin\PartnersController as SuperAdminPart
 use App\Http\Controllers\Modules\SuperAdmin\MarketplaceController as SuperAdminMarketplaceController;
 use App\Http\Controllers\Modules\SuperAdmin\LendersController as SuperAdminLendersController;
 use App\Http\Controllers\Modules\SuperAdmin\AnalyticsController as SuperAdminAnalyticsController;
+use App\Http\Controllers\Modules\SuperAdmin\TransactionController as SuperAdminTransactionController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
@@ -93,6 +94,11 @@ Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('sup
 
     // Wallet oversight (full-platform scope)
     Route::get('/wallets', [SuperAdminWalletController::class, 'index']);
+    Route::post('/wallet-transactions/{walletTransaction}/requery', [SuperAdminTransactionController::class, 'requeryWalletTransaction']);
+
+    // Transactions oversight (full-platform disbursements + requery)
+    Route::get('/transactions', [SuperAdminTransactionController::class, 'index']);
+    Route::post('/transactions/{transaction}/requery', [SuperAdminTransactionController::class, 'requeryTransaction']);
 
     // Payroll oversight (full-platform scope)
     Route::get('/payrolls', [SuperAdminPayrollController::class, 'index']);

@@ -38,12 +38,38 @@ class WalletController extends Controller
                 'bank_name' => $wallet->bank_name,
             ],
             'transactions' => $logs->map(function($log) {
+                $desc = strtolower((string) ($log->description ?? ''));
+                $typeRaw = strtolower((string) $log->type);
+                $isReversal = $typeRaw === 'reversal'
+                    || str_contains($desc, 'reverse')
+                    || str_contains($desc, 'reversal')
+                    || str_contains($desc, 'refund for failed');
+
+                if ($isReversal) {
+                    $typeLabel = 'Reversal';
+                    $amountPrefix = '+ ';
+                    $status = 'Reversed';
+                } elseif ($log->type === 'credit') {
+                    $typeLabel = '+ Topup';
+                    $amountPrefix = '+ ';
+                    $status = 'Confirmed';
+                } else {
+                    $typeLabel = '- Withdrawal';
+                    $amountPrefix = '- ';
+                    $status = 'Confirmed';
+                }
+
                 return [
                     'date' => $log->created_at->format('d M Y, H:i'),
-                    'type' => $log->type === 'credit' ? '+ Topup' : '- Withdrawal',
-                    'amount' => ($log->type === 'credit' ? '+ ' : '- ') . '₦' . number_format($log->amount, 2),
-                    'status' => 'Confirmed', // Simplified status for UI
-                    'reference' => $log->metadata['transaction_reference'] ?? '-',
+                    'type' => $typeLabel,
+                    'is_reversal' => $isReversal,
+                    'amount' => $amountPrefix . '₦' . number_format((float) $log->amount, 2),
+                    'amount_raw' => (float) $log->amount,
+                    'status' => $status,
+                    'description' => (string) ($log->description ?? ''),
+                    'reference' => $log->metadata['transaction_reference']
+                        ?? $log->metadata['failed_reference']
+                        ?? ($log->metadata['reference'] ?? '-'),
                 ];
             }),
         ];

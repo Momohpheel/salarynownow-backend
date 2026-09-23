@@ -42,14 +42,15 @@ class TransactionController extends Controller
 
                     $employerWallet->logs()->create([
                         'amount' => $transaction->amount,
-                        'type' => 'credit',
-                        'description' => "Refund for failed transaction: {$transaction->reference}",
+                        'type' => 'reversal',
+                        'description' => "Reversal: Refund for failed transaction: {$transaction->reference}",
                         'balance_before' => $balanceBefore,
                         'balance_after' => (float) $employerWallet->balance,
                         'metadata' => [
                             'transaction_id' => $transaction->id,
                             'payslip_id' => $transaction->payslip_id,
                             'payroll_id' => $transaction->payroll_id,
+                            'failed_reference' => $transaction->reference,
                         ],
                     ]);
                 }
