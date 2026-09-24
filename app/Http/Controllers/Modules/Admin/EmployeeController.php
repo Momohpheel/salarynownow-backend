@@ -69,7 +69,7 @@ class EmployeeController extends Controller
 
         $perPage = (int) $request->input('per_page', $request->input('page') ? 15 : 0);
 
-        $transform = function($user) {
+        $transform = function($user) use ($hasStatusCol, $hasSuspensionCol) {
             $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
             $lastPayroll = $user->payrolls()->latest()->first();
 
@@ -126,9 +126,15 @@ class EmployeeController extends Controller
     {
         $admin = $request->user();
 
+        $hasStatusCol = Schema::hasColumn('users', 'status');
+
         $pendingCount = User::where('type', User::TYPE_EMPLOYEE)
             ->where('parent_id', $admin->id)
-            ->where('is_approved', false)->where('status', 'pending')
+            ->when($hasStatusCol, function ($q) {
+                $q->where('is_approved', false)->where('status', 'pending');
+            }, function ($q) {
+                $q->where('is_approved', false);
+            })
             ->count();
 
         $approvedCount = User::where('type', User::TYPE_EMPLOYEE)
@@ -136,10 +142,12 @@ class EmployeeController extends Controller
             ->where('is_approved', true)
             ->count();
 
-        $rejectedCount = User::where('type', User::TYPE_EMPLOYEE)
-            ->where('parent_id', $admin->id)
-            ->where('status', 'rejected')
-            ->count();
+        $rejectedCount = $hasStatusCol
+            ? User::where('type', User::TYPE_EMPLOYEE)
+                ->where('parent_id', $admin->id)
+                ->where('status', 'rejected')
+                ->count()
+            : 0;
 
         $status = $request->query('status', 'pending'); // pending, approved, rejected
 
@@ -147,14 +155,18 @@ class EmployeeController extends Controller
             ->where('parent_id', $admin->id);
 
         if ($status === 'pending') {
-            $query->where('is_approved', false)->where('status', 'pending');
+            if ($hasStatusCol) {
+                $query->where('is_approved', false)->where('status', 'pending');
+            } else {
+                $query->where('is_approved', false);
+            }
         } elseif ($status === 'approved') {
             $query->where('is_approved', true);
-        } elseif ($status === 'rejected') {
+        } elseif ($status === 'rejected' && $hasStatusCol) {
             $query->where('status', 'rejected');
         }
 
-        $reviews = $query->latest()->get()->map(function($user) {
+        $reviews = $query->latest()->get()->map(function($user) use ($hasStatusCol) {
             $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
 
             $user->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
@@ -176,7 +188,9 @@ class EmployeeController extends Controller
                 'state' => $user->state_of_origin ?? 'Nigeria',
                 'submitted' => $user->created_at->format('d M Y'),
                 'staff' => $staffCount,
-                'status' => $user->is_approved ? 'Approved' : ucfirst($user->status),
+                'status' => $hasStatusCol
+                    ? ($user->is_approved ? 'Approved' : ucfirst($user->status ?? 'pending'))
+                    : ($user->is_approved ? 'Approved' : 'Pending'),
             ];
         });
 
