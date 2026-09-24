@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Mail\PayslipMail;
+use App\Models\WalletLog;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -25,9 +26,6 @@ class RequeryTransactions extends Command
         $this->sarepayService = $sarepayService;
     }
 
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
         $this->info('Checking for processing transactions...');
@@ -50,13 +48,10 @@ class RequeryTransactions extends Command
                 \Illuminate\Support\Facades\Log::info('Sarepay verifyTransfer response: ' . json_encode($response));
 
                 if ($response && isset($response->data->status)) {
-                    // Update status based on Sarepay response
-                    // Assuming 'success' means disbursed
                     if (strtolower($response->data->status) === 'Successful' || strtolower($response->data->status) === 'completed') {
                         $transaction->status = Transaction::STATUS_SUCCESS;
                         $transaction->save();
                         
-                        // Update related payslip
                         $transaction->payslip->update(['status' => Payslip::STATUS_DISBURSED]);
                         $transaction->payslip->load('user');
 
@@ -77,12 +72,34 @@ class RequeryTransactions extends Command
                         $employerWallet = $employer->wallet;
 
                         if ($employerWallet) {
+                            $principalAmount = (float) $transaction->amount;
+                            $storedFeeAmount = 0.0;
+
+                            $originalDebitLog = WalletLog::where('wallet_id', $employerWallet->id)
+                                ->where('type', 'debit')
+                                ->whereJsonContains('metadata->transaction_reference', $transaction->reference)
+                                ->orderBy('id', 'desc')
+                                ->first();
+
+                            if ($originalDebitLog && isset($originalDebitLog->metadata['charge_amount'])) {
+                                $storedFeeAmount = (float) $originalDebitLog->metadata['charge_amount'];
+                            }
+
+                            $totalRefund = $principalAmount + $storedFeeAmount;
+
+                            $this->info(sprintf(
+                                '  Reversal: refunding total ₦%s = ₦%s (principal) + ₦%s (fee from metadata.charge_amount)',
+                                number_format($totalRefund, 2),
+                                number_format($principalAmount, 2),
+                                number_format($storedFeeAmount, 2)
+                            ));
+
                             $balanceBefore = (float) $employerWallet->balance;
-                            $employerWallet->increment('balance', $transaction->amount);
+                            $employerWallet->increment('balance', $totalRefund);
                             $employerWallet->refresh();
 
                             $employerWallet->logs()->create([
-                                'amount' => $transaction->amount,
+                                'amount' => $totalRefund,
                                 'type' => 'credit',
                                 'description' => "Refund for failed transaction: {$transaction->reference}",
                                 'balance_before' => $balanceBefore,
@@ -91,10 +108,15 @@ class RequeryTransactions extends Command
                                     'transaction_id' => $transaction->id,
                                     'payslip_id' => $transaction->payslip_id,
                                     'payroll_id' => $transaction->payroll_id,
+                                    'failed_reference' => $transaction->reference,
+                                    'principal_refund' => $principalAmount,
+                                    'charge_amount_refund' => $storedFeeAmount,
+                                    'total_refund' => $totalRefund,
+                                    'original_debit_log_id' => $originalDebitLog?->id,
                                 ],
                             ]);
 
-                            $this->info("Refunded {$transaction->amount} to employer {$employer->name}.");
+                            $this->info("Refunded {$totalRefund} to employer {$employer->name} (principal + fee).");
                         }
                         
                         $this->error("Transaction {$transaction->reference} marked as FAILED.");
@@ -105,7 +127,6 @@ class RequeryTransactions extends Command
             }
         }
 
-        // Finally, check if any processing payrolls are now fully completed
         $this->checkPayrollCompletion();
     }
 

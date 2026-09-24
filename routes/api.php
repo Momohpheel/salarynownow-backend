@@ -25,6 +25,7 @@ use App\Http\Controllers\Modules\Admin\ChargeController as AdminChargeController
 use App\Http\Controllers\Modules\Admin\TransactionController as AdminTransactionController;
 use App\Http\Controllers\Modules\Admin\TeamController as AdminTeamController;
 use App\Http\Controllers\Modules\Admin\SettingsController as AdminSettingsController;
+use App\Http\Controllers\Modules\Admin\FeeConfigController as AdminFeeConfigController;
 use App\Http\Controllers\Modules\SuperAdmin\WalletController as SuperAdminWalletController;
 use App\Http\Controllers\Modules\SuperAdmin\PayrollController as SuperAdminPayrollController;
 use App\Http\Controllers\Modules\SuperAdmin\PensionController as SuperAdminPensionController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Modules\SuperAdmin\MarketplaceController as SuperAdminM
 use App\Http\Controllers\Modules\SuperAdmin\LendersController as SuperAdminLendersController;
 use App\Http\Controllers\Modules\SuperAdmin\AnalyticsController as SuperAdminAnalyticsController;
 use App\Http\Controllers\Modules\SuperAdmin\TransactionController as SuperAdminTransactionController;
+use App\Http\Controllers\Modules\SuperAdmin\FeeConfigController as SuperAdminFeeConfigController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
@@ -134,6 +136,13 @@ Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('sup
     Route::post('/lenders/{id}/priority', [SuperAdminLendersController::class, 'updatePriority']);
     Route::post('/lenders', [SuperAdminLendersController::class, 'store']);
 
+    // Fee engine: platform / merchant / partner defaults (multi-tier)
+    Route::get('/fees/preview-amount', [SuperAdminFeeConfigController::class, 'previewAmount']);
+    Route::get('/fees', [SuperAdminFeeConfigController::class, 'index']);
+    Route::post('/fees', [SuperAdminFeeConfigController::class, 'store']);
+    Route::post('/fees/{id}/toggle', [SuperAdminFeeConfigController::class, 'toggle']);
+    Route::delete('/fees/{id}', [SuperAdminFeeConfigController::class, 'destroy']);
+
     // Analytics (KPI / leaderboards / cohorts / geo / mix / timeline / scatter / funnel)
     Route::get('/analytics', [SuperAdminAnalyticsController::class, 'index']);
 });
@@ -224,6 +233,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/marketplace/platform-settings', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'getPlatformSettings']);
         Route::post('/marketplace/platform-settings', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'savePlatformSettings']);
         Route::post('/marketplace/fire-trigger', [\App\Http\Controllers\Modules\Admin\MarketplaceController::class, 'fireTrigger']);
+
+        // Fee engine: employer-level overrides (multi-tier, Admin sets for their own employers)
+        Route::get('/fees/preview-amount', [AdminFeeConfigController::class, 'previewAmount']);
+        Route::get('/fees', [AdminFeeConfigController::class, 'index']);
+        Route::post('/fees', [AdminFeeConfigController::class, 'store']);
+        Route::post('/fees/{id}/toggle', [AdminFeeConfigController::class, 'toggle']);
     });
 
     // Partner Protected Routes

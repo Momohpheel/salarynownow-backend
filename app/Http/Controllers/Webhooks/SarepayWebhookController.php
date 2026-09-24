@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Mail\WalletInflow;
+use App\Models\Charge;
+use App\Models\FeeConfig;
 use App\Models\Wallet;
 use App\Models\WalletLog;
-use App\Models\Charge;
+use App\Traits\ResolvesFeeConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,21 +16,12 @@ use Illuminate\Support\Facades\Mail;
 
 class SarepayWebhookController extends Controller
 {
-    /**
-     * Verify the Sarepay webhook signature.
-     *
-     * Sarepay (and similar payment providers) typically send a header such
-     * as `X-Sarepay-Signature` (SHA-512 of the raw body keyed with the
-     * shared webhook secret). We accept a small family of common header
-     * names so the check is robust when the provider renames the header.
-     */
+    use ResolvesFeeConfig;
+
     private function verifySignature(Request $request): bool
     {
         $secret = (string) config('payment.webhook_secret');
         if ($secret === '') {
-            // If the webhook secret has not been configured (dev/CI),
-            // require a local-only source IP. This protects accidental
-            // deployments where the secret env variable was not set.
             $ip = (string) $request->ip();
             if ($ip === '' || !in_array($ip, ['127.0.0.1', '::1', 'localhost'], true)) {
                 Log::warning('Sarepay webhook rejected: SAREPAY_WEBHOOK_SECRET is empty and caller is not local.', ['ip' => $ip]);
@@ -51,7 +44,6 @@ class SarepayWebhookController extends Controller
             if ($candidate === '') {
                 continue;
             }
-            // `sha256=abcd...` prefix form also accepted
             $parts = explode('=', $candidate, 2);
             $signature = count($parts) === 2 ? $parts[1] : $candidate;
             if (hash_equals($expected, (string) $signature)) {
@@ -59,8 +51,6 @@ class SarepayWebhookController extends Controller
             }
         }
 
-        // Also accept a lower-common `X-Signature-512` header used by some
-        // deployments.
         $alt = trim((string) $request->header('X-Signature-512', ''));
         if ($alt !== '' && hash_equals($expected, $alt)) {
             return true;
@@ -85,16 +75,6 @@ class SarepayWebhookController extends Controller
 
     public function handle(Request $request)
     {
-        // if (!$this->verifySignature($request)) {
-        //     Log::warning('Sarepay webhook failed signature verification.', [
-        //         'headers' => $request->headers->all(),
-        //     ]);
-        //     return response()->json([
-        //         'status' => false,
-        //         'message' => 'Unauthorized webhook request.',
-        //     ], 401);
-        // }
-
         $payload = $request->all();
         Log::info('Sarepay Webhook Received:', $payload);
         if (strpos((string) $request->event, "generate.virtualaccount.successful") !== false) {
@@ -117,7 +97,7 @@ class SarepayWebhookController extends Controller
         $data = $payload['data'] ?? [];
         $accountReference = $data['account_reference'] ?? null;
         $transactionReference = $data['transaction_reference'] ?? null;
-        $amount = $data['amount'] ?? 0;
+        $amount = (float) ($data['amount'] ?? 0);
 
         if (!$accountReference || !$transactionReference || $amount <= 0) {
             return response()->json(['message' => 'Invalid data'], 400);
@@ -132,7 +112,6 @@ class SarepayWebhookController extends Controller
 
         try {
             $result = DB::transaction(function () use ($wallet, $amount, $transactionReference, $data) {
-                // Idempotency: never replay the same transaction twice.
                 $alreadyProcessed = WalletLog::query()
                     ->where('wallet_id', $wallet->id)
                     ->whereJsonContains('metadata->transaction_reference', $transactionReference)
@@ -142,18 +121,65 @@ class SarepayWebhookController extends Controller
                     return ['replayed' => true];
                 }
 
-                $charge = Charge::where('name', 'wallet-top-up')->first();
-                $chargeAmount = 0;
-                if ($charge) {
-                    if ($charge->type === 'percentage') {
-                        $chargeAmount = ($amount * $charge->amount) / 100;
-                        if ($charge->cap && $chargeAmount > $charge->cap) {
-                            $chargeAmount = $charge->cap;
+                $walletOwner = $wallet->user;
+                $chargeAmount = 0.0;
+                $feeScopeLabel = null;
+                $feeCalculationLabel = null;
+                $feeBreakdown = null;
+                $feeSource = 'none';
+
+                if ($walletOwner) {
+                    $feeResolution = $this->resolveAndComputeFee(
+                        $walletOwner,
+                        FeeConfig::EVENT_INFLOW_TOPUP,
+                        $amount
+                    );
+                    $chargeAmount = (float) ($feeResolution['amount'] ?? 0.0);
+                    $feeScopeLabel = $feeResolution['scope_label'] ?? null;
+                    $feeCalculationLabel = $feeResolution['calculation_label'] ?? null;
+                    $feeBreakdown = $feeResolution['breakdown'] ?? null;
+                    $feeSource = $chargeAmount > 0 ? 'fee_config' : 'none';
+                }
+
+                if ($chargeAmount <= 0) {
+                    $charge = Charge::where('name', 'wallet-top-up')->first();
+                    if ($charge) {
+                        if ($charge->type === 'percentage') {
+                            $chargeAmount = ($amount * (float) $charge->amount) / 100;
+                            if ($charge->cap && $chargeAmount > (float) $charge->cap) {
+                                $chargeAmount = (float) $charge->cap;
+                            }
+                        } elseif ($charge->type === 'fixed') {
+                            $chargeAmount = (float) $charge->amount;
+                        }
+                        $chargeAmount = round($chargeAmount, 2, PHP_ROUND_HALF_UP);
+                        if ($chargeAmount > 0) {
+                            $feeSource = 'legacy_charge';
+                            $feeBreakdown = sprintf(
+                                'Legacy Charge shim: name=wallet-top-up type=%s amount=%s cap=%s — computed fee=%.2f on base=%.2f',
+                                $charge->type,
+                                $charge->amount,
+                                $charge->cap ?? 'null',
+                                $chargeAmount,
+                                $amount
+                            );
                         }
                     }
                 }
 
+                Log::info(sprintf(
+                    'Sarepay inflow fee resolution: amount=%.2f source=%s chargeAmount=%.2f scope=%s calc=%s',
+                    $amount,
+                    $feeSource,
+                    $chargeAmount,
+                    $feeScopeLabel ?? 'none',
+                    $feeCalculationLabel ?? 'none'
+                ));
+
                 $netAmount = $amount - $chargeAmount;
+                if ($netAmount < 0) {
+                    $netAmount = 0;
+                }
                 $balanceBefore = (float) $wallet->balance;
 
                 $wallet->increment('balance', $netAmount);
@@ -171,6 +197,11 @@ class SarepayWebhookController extends Controller
                         'sender_bank' => $data['sender']['originatorBank'] ?? 'Unknown',
                         'charge_amount' => $chargeAmount,
                         'net_amount' => $netAmount,
+                        'principal_amount' => $amount,
+                        'fee_source' => $feeSource,
+                        'fee_scope_label' => $feeScopeLabel,
+                        'fee_calculation_label' => $feeCalculationLabel,
+                        'fee_breakdown' => $feeBreakdown,
                     ]
                 ]);
 

@@ -8,12 +8,13 @@ use Illuminate\Console\Command;
 
 use App\Mail\PayslipMail;
 use App\Mail\PayrollCompleted;
+use App\Models\FeeConfig;
 use App\Models\Payroll;
 use App\Models\Payslip;
-use App\Models\Charge;
 use App\Models\Notification;
 use App\Models\Transaction;
 use App\Services\Sarepay\SarepayService;
+use App\Traits\ResolvesFeeConfig;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -21,6 +22,8 @@ use Illuminate\Support\Str;
 #[Description('Process and disburse salaries for scheduled payrolls')]
 class ProcessPayroll extends Command
 {
+    use ResolvesFeeConfig;
+
     protected $sarepayService;
 
     public function __construct(SarepayService $sarepayService)
@@ -29,9 +32,6 @@ class ProcessPayroll extends Command
         $this->sarepayService = $sarepayService;
     }
 
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
         $this->info('Checking for payrolls to disburse...');
@@ -49,10 +49,7 @@ class ProcessPayroll extends Command
             return;
         }
 
-        //$disbursementCharge = Charge::where('name', 'disbursement')->first();
-
         foreach ($payrolls as $payroll) {
-            // Guard: orphan payroll (user relationship missing. Skip gracefully so other payrolls keep processing.
             $employer = $payroll->user;
             $employerName = $employer?->company_name ?? 'Unknown Employer';
             if (! $employer) {
@@ -79,8 +76,9 @@ class ProcessPayroll extends Command
             foreach ($payslips as $payslip) {
                 $staff = $payslip->user;
                 $reference = 'SAL-' . Str::upper(Str::random(10));
+                $netSalary = (float) $payslip->net_salary;
 
-                $this->info("Initiating transfer of ₦" . number_format($payslip->net_salary, 2) . " to {$staff->name} ({$staff->account_number})");
+                $this->info("Initiating transfer of ₦" . number_format($netSalary, 2) . " to {$staff->name} ({$staff->account_number})");
 
                 try {
                     if (! $employerWallet) {
@@ -88,12 +86,24 @@ class ProcessPayroll extends Command
                         throw new \Exception("Employer wallet not found.");
                     }
 
-                    $chargeAmount = 0;
-                    // if ($disbursementCharge && $disbursementCharge->type === 'fixed') {
-                    //     $chargeAmount = $disbursementCharge->amount;
-                    // }
+                    $feeResolution = $this->resolveAndComputeFee(
+                        $employer,
+                        FeeConfig::EVENT_OUTFLOW_DISBURSEMENT,
+                        $netSalary
+                    );
+                    $feeAmount = (float) ($feeResolution['amount'] ?? 0.0);
 
-                    $totalDeduction = $payslip->net_salary + $chargeAmount;
+                    $totalDeduction = $netSalary + $feeAmount;
+
+                    $this->info(sprintf(
+                        '  Fee: ₦%s (scope=%s calc=%s) — wallet deduction: ₦%s = ₦%s (net) + ₦%s (fee)',
+                        number_format($feeAmount, 2),
+                        $feeResolution['scope_label'] ?? 'none',
+                        $feeResolution['calculation_label'] ?? 'none',
+                        number_format($totalDeduction, 2),
+                        number_format($netSalary, 2),
+                        number_format($feeAmount, 2)
+                    ));
 
                     if ($availableBalance < $totalDeduction) {
                         $this->error("Insufficient employer wallet balance for {$payroll->user->name} to cover salary and charges");
@@ -111,12 +121,10 @@ class ProcessPayroll extends Command
                         $reference,
                         $staff->account_number,
                         $bankCode,
-                        $payslip->net_salary,
+                        $netSalary,
                         "Salary for {$employerName} - {$payroll->description}"
                     );
 
-                    // Null-safe Sarepay response status extraction
-                    // Expected: {success: true, data: {status: "SUCCESS"}}, but accept any shape.
                     if (is_array($response)) {
                         $rawStatus = $response['data']['status']
                             ?? $response['status']
@@ -134,13 +142,12 @@ class ProcessPayroll extends Command
                         ? strtolower($rawStatus)
                         : Transaction::STATUS_PENDING;
 
-                    // Create transaction record
                     Transaction::create([
                         'user_id' => $staff->id,
                         'payroll_id' => $payroll->id,
                         'payslip_id' => $payslip->id,
                         'reference' => $reference,
-                        'amount' => $payslip->net_salary,
+                        'amount' => $netSalary,
                         'status' => $transferStatus,
                         'metadata' => (array) $response,
                     ]);
@@ -150,7 +157,7 @@ class ProcessPayroll extends Command
                     $employerWallet->refresh();
 
                     $employerWallet->logs()->create([
-                        'amount' => $payslip->net_salary,
+                        'amount' => $netSalary,
                         'type' => 'debit',
                         'description' => "Salary payment for {$staff->name} — {$employerName} ({$payroll->description})",
                         'balance_before' => $balanceBefore,
@@ -159,7 +166,12 @@ class ProcessPayroll extends Command
                             'payroll_id' => $payroll->id,
                             'payslip_id' => $payslip->id,
                             'transaction_reference' => $reference,
-                            'charge_amount' => $chargeAmount,
+                            'charge_amount' => $feeAmount,
+                            'fee_scope_label' => $feeResolution['scope_label'] ?? null,
+                            'fee_calculation_label' => $feeResolution['calculation_label'] ?? null,
+                            'fee_breakdown' => $feeResolution['breakdown'] ?? null,
+                            'principal_amount' => $netSalary,
+                            'total_deduction' => $totalDeduction,
                         ],
                     ]);
 
@@ -201,7 +213,7 @@ class ProcessPayroll extends Command
                         'payroll_id' => $payroll->id,
                         'payslip_id' => $payslip->id,
                         'reference' => $reference,
-                        'amount' => $payslip->net_salary,
+                        'amount' => $netSalary,
                         'status' => Transaction::STATUS_FAILED,
                         'response_message' => $e->getMessage(),
                     ]);

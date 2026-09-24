@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use App\Models\Payslip;
+use App\Models\WalletLog;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 
@@ -36,12 +37,27 @@ class TransactionController extends Controller
                 $employerWallet = $employer->wallet;
 
                 if ($employerWallet) {
+                    $principalAmount = (float) $transaction->amount;
+                    $storedFeeAmount = 0.0;
+
+                    $originalDebitLog = WalletLog::where('wallet_id', $employerWallet->id)
+                        ->where('type', 'debit')
+                        ->whereJsonContains('metadata->transaction_reference', $transaction->reference)
+                        ->orderBy('id', 'desc')
+                        ->first();
+
+                    if ($originalDebitLog && isset($originalDebitLog->metadata['charge_amount'])) {
+                        $storedFeeAmount = (float) $originalDebitLog->metadata['charge_amount'];
+                    }
+
+                    $totalRefund = $principalAmount + $storedFeeAmount;
+
                     $balanceBefore = (float) $employerWallet->balance;
-                    $employerWallet->increment('balance', $transaction->amount);
+                    $employerWallet->increment('balance', $totalRefund);
                     $employerWallet->refresh();
 
                     $employerWallet->logs()->create([
-                        'amount' => $transaction->amount,
+                        'amount' => $totalRefund,
                         'type' => 'reversal',
                         'description' => "Reversal: Refund for failed transaction: {$transaction->reference}",
                         'balance_before' => $balanceBefore,
@@ -51,6 +67,10 @@ class TransactionController extends Controller
                             'payslip_id' => $transaction->payslip_id,
                             'payroll_id' => $transaction->payroll_id,
                             'failed_reference' => $transaction->reference,
+                            'principal_refund' => $principalAmount,
+                            'charge_amount_refund' => $storedFeeAmount,
+                            'total_refund' => $totalRefund,
+                            'original_debit_log_id' => $originalDebitLog?->id,
                         ],
                     ]);
                 }
