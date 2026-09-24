@@ -13,6 +13,7 @@ use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 
 class EmployeeController extends Controller
 {
@@ -30,20 +31,31 @@ class EmployeeController extends Controller
         $query = User::where('type', User::TYPE_EMPLOYEE)
             ->where('parent_id', $admin->id);
 
+        $hasStatusCol = Schema::hasColumn('users', 'status');
+        $hasSuspensionCol = Schema::hasColumn('users', 'suspension_reason');
+
         if ($request->filled('status')) {
             $status = $request->input('status');
             if ($status === 'active') {
-                $query->where('is_approved', true)
-                    ->whereNull('suspension_reason')
-                    ->where(function ($q) {
+                $query->where('is_approved', true);
+                if ($hasSuspensionCol) {
+                    $query->whereNull('suspension_reason');
+                }
+                if ($hasStatusCol) {
+                    $query->where(function ($q) {
                         $q->whereNull('status')
                             ->orWhereNotIn('status', ['rejected', 'under_review']);
                     });
+                }
             } elseif ($status === 'approved') {
                 $query->where('is_approved', true);
             } elseif ($status === 'pending') {
-                $query->where('is_approved', false)->where('status', 'pending');
-            } elseif ($status === 'rejected') {
+                if ($hasStatusCol) {
+                    $query->where('is_approved', false)->where('status', 'pending');
+                } else {
+                    $query->where('is_approved', false);
+                }
+            } elseif ($status === 'rejected' && $hasStatusCol) {
                 $query->where('status', 'rejected');
             }
         }
@@ -72,11 +84,11 @@ class EmployeeController extends Controller
                 'company_address' => $user->company_address,
                 'staff' => $staffCount,
                 'last_payroll' => $lastPayroll ? ($lastPayroll->processed_at?->toIso8601String() ?? $lastPayroll->created_at?->toIso8601String()) : null,
-                'kyb_status' => $user->is_approved ? 'approved' : ($user->status ?? 'pending'),
+                'kyb_status' => $user->is_approved ? 'approved' : (($hasStatusCol && $user->status !== null) ? $user->status : 'pending'),
                 'is_approved' => (bool) $user->is_approved,
-                'status' => $user->status ?? ($user->is_approved ? 'approved' : 'pending'),
-                'suspension_reason' => $user->suspension_reason,
-                'is_active' => (bool) ($user->is_approved && $user->suspension_reason === null && !in_array($user->status, ['rejected', 'under_review'], true)),
+                'status' => $hasStatusCol ? ($user->status ?? ($user->is_approved ? 'approved' : 'pending')) : ($user->is_approved ? 'approved' : 'pending'),
+                'suspension_reason' => $hasSuspensionCol ? ($user->suspension_reason ?? null) : null,
+                'is_active' => (bool) ($user->is_approved && ($hasSuspensionCol ? $user->suspension_reason === null : true) && (!$hasStatusCol || !in_array($user->status, ['rejected', 'under_review'], true))),
                 'has_kyb_documents' => (bool) ($user->cac_certificate_path || $user->director_id_path || $user->utility_bill_path),
                 'joined' => $user->created_at->format('d M Y'),
                 'created_at' => $user->created_at?->toIso8601String(),
