@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Modules\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\EmployerApproved;
 use App\Mail\EmployerRejected;
-use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Wallet;
@@ -13,7 +12,6 @@ use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Schema;
 
 class EmployeeController extends Controller
 {
@@ -31,35 +29,6 @@ class EmployeeController extends Controller
         $query = User::where('type', User::TYPE_EMPLOYEE)
             ->where('parent_id', $admin->id);
 
-        $hasStatusCol = Schema::hasColumn('users', 'status');
-        $hasSuspensionCol = Schema::hasColumn('users', 'suspension_reason');
-
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-            if ($status === 'active') {
-                $query->where('is_approved', true);
-                if ($hasSuspensionCol) {
-                    $query->whereNull('suspension_reason');
-                }
-                if ($hasStatusCol) {
-                    $query->where(function ($q) {
-                        $q->whereNull('status')
-                            ->orWhereNotIn('status', ['rejected', 'under_review']);
-                    });
-                }
-            } elseif ($status === 'approved') {
-                $query->where('is_approved', true);
-            } elseif ($status === 'pending') {
-                if ($hasStatusCol) {
-                    $query->where('is_approved', false)->where('status', 'pending');
-                } else {
-                    $query->where('is_approved', false);
-                }
-            } elseif ($status === 'rejected' && $hasStatusCol) {
-                $query->where('status', 'rejected');
-            }
-        }
-
         if ($request->search) {
             $query->where(function($q) use ($request) {
                 $q->where('company_name', 'like', "%{$request->search}%")
@@ -67,54 +36,20 @@ class EmployeeController extends Controller
             });
         }
 
-        $perPage = (int) $request->input('per_page', $request->input('page') ? 15 : 0);
-
-        $transform = function($user) use ($hasStatusCol, $hasSuspensionCol) {
+        $employees = $query->latest()->get()->map(function($user) {
             $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
             $lastPayroll = $user->payrolls()->latest()->first();
 
             return [
                 'id' => $user->id,
                 'company_name' => $user->company_name ?? $user->name,
-                'name' => $user->company_name ?? $user->name,
-                'email' => $user->email,
-                'phone_number' => $user->phone_number,
                 'rc_number' => $user->rc_number ?? 'nil',
-                'industry' => $user->industry ?? 'nil',
-                'company_address' => $user->company_address,
                 'staff' => $staffCount,
-                'last_payroll' => $lastPayroll ? ($lastPayroll->processed_at?->toIso8601String() ?? $lastPayroll->created_at?->toIso8601String()) : null,
-                'kyb_status' => $user->is_approved ? 'approved' : (($hasStatusCol && $user->status !== null) ? $user->status : 'pending'),
-                'is_approved' => (bool) $user->is_approved,
-                'status' => $hasStatusCol ? ($user->status ?? ($user->is_approved ? 'approved' : 'pending')) : ($user->is_approved ? 'approved' : 'pending'),
-                'suspension_reason' => $hasSuspensionCol ? ($user->suspension_reason ?? null) : null,
-                'is_active' => (bool) ($user->is_approved && ($hasSuspensionCol ? $user->suspension_reason === null : true) && (!$hasStatusCol || !in_array($user->status, ['rejected', 'under_review'], true))),
-                'has_kyb_documents' => (bool) ($user->cac_certificate_path || $user->director_id_path || $user->utility_bill_path),
+                'last_payroll' => $lastPayroll ? '₦' . number_format($lastPayroll->amount, 0) : '0',
+                'kyb_status' => $user->is_approved ? 'Approved' : ucfirst($user->status),
                 'joined' => $user->created_at->format('d M Y'),
-                'created_at' => $user->created_at?->toIso8601String(),
             ];
-        };
-
-        if ($perPage > 0) {
-            $paginator = $query->latest()->paginate($perPage);
-            $mapped = collect($paginator->items())->map($transform)->values();
-
-            $pagination = [
-                'current_page' => $paginator->currentPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'last_page' => $paginator->lastPage(),
-                'from' => $paginator->firstItem(),
-                'to' => $paginator->lastItem(),
-            ];
-
-            return $this->sendResponse([
-                'items' => $mapped,
-                'pagination' => $pagination,
-            ], 'Companies retrieved successfully');
-        }
-
-        $employees = $query->latest()->get()->map($transform);
+        });
 
         return $this->sendResponse($employees, 'Companies retrieved successfully');
     }
@@ -126,15 +61,9 @@ class EmployeeController extends Controller
     {
         $admin = $request->user();
 
-        $hasStatusCol = Schema::hasColumn('users', 'status');
-
         $pendingCount = User::where('type', User::TYPE_EMPLOYEE)
             ->where('parent_id', $admin->id)
-            ->when($hasStatusCol, function ($q) {
-                $q->where('is_approved', false)->where('status', 'pending');
-            }, function ($q) {
-                $q->where('is_approved', false);
-            })
+            ->where('is_approved', false)->where('status', 'pending')
             ->count();
 
         $approvedCount = User::where('type', User::TYPE_EMPLOYEE)
@@ -142,12 +71,10 @@ class EmployeeController extends Controller
             ->where('is_approved', true)
             ->count();
 
-        $rejectedCount = $hasStatusCol
-            ? User::where('type', User::TYPE_EMPLOYEE)
-                ->where('parent_id', $admin->id)
-                ->where('status', 'rejected')
-                ->count()
-            : 0;
+        $rejectedCount = User::where('type', User::TYPE_EMPLOYEE)
+            ->where('parent_id', $admin->id)
+            ->where('status', 'rejected')
+            ->count();
 
         $status = $request->query('status', 'pending'); // pending, approved, rejected
 
@@ -155,18 +82,14 @@ class EmployeeController extends Controller
             ->where('parent_id', $admin->id);
 
         if ($status === 'pending') {
-            if ($hasStatusCol) {
-                $query->where('is_approved', false)->where('status', 'pending');
-            } else {
-                $query->where('is_approved', false);
-            }
+            $query->where('is_approved', false)->where('status', 'pending');
         } elseif ($status === 'approved') {
             $query->where('is_approved', true);
-        } elseif ($status === 'rejected' && $hasStatusCol) {
+        } elseif ($status === 'rejected') {
             $query->where('status', 'rejected');
         }
 
-        $reviews = $query->latest()->get()->map(function($user) use ($hasStatusCol) {
+        $reviews = $query->latest()->get()->map(function($user) {
             $staffCount = User::where('parent_id', $user->id)->where('type', User::TYPE_STAFF)->count();
 
             $user->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
@@ -188,9 +111,7 @@ class EmployeeController extends Controller
                 'state' => $user->state_of_origin ?? 'Nigeria',
                 'submitted' => $user->created_at->format('d M Y'),
                 'staff' => $staffCount,
-                'status' => $hasStatusCol
-                    ? ($user->is_approved ? 'Approved' : ucfirst($user->status ?? 'pending'))
-                    : ($user->is_approved ? 'Approved' : 'Pending'),
+                'status' => $user->is_approved ? 'Approved' : ucfirst($user->status),
             ];
         });
 
@@ -211,19 +132,13 @@ class EmployeeController extends Controller
         $admin = $request->user();
 
         // Ensure the employee belongs to this merchant
-        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
+        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->employer_id !== $admin->id) {
             return $this->sendError('Employee not found or unauthorized', null, 404);
         }
 
-        $employee->load(['staff', 'payrolls.transactions.payslip.user', 'wallet']);
         $employee->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
 
-        $staff = $employee->getRelation('staff')->filter(function ($u) {
-            return $u->type === User::TYPE_STAFF;
-        })->values();
-        $employee->setRelation('staff', $staff);
-
-        return $this->sendResponse(['company_info' => $employee], 'Employee details retrieved');
+        return $this->sendResponse($employee, 'Employee details retrieved');
     }
 
     public function approve(Request $request, User $employee)
@@ -235,60 +150,34 @@ class EmployeeController extends Controller
             return $this->sendError('Employee not found or unauthorized', null, 404);
         }
 
-        $wasApproved = (bool) $employee->is_approved;
+        if ($employee->is_approved) {
+            return $this->sendError('Employee is already approved.', null, 400);
+        }
 
-        // Only create a fresh virtual account when the company was NOT approved yet.
-        // If already approved, skip Sarepay account creation and reuse the existing wallet.
-        $accountData = null;
-        //if (!$wasApproved) {
+        // Call Sarepay to create virtual account
         $sarepayResponse = $this->sarepayService->createAccount($employee);
+       
+
         $accountData = $sarepayResponse;
-       // }
 
         DB::transaction(function () use ($employee, $accountData) {
             $employee->update(['is_approved' => true, 'status' => 'approved']);
 
-            // Wallet already exists for previously approved companies;
-            // create-or-update ensures we never error on re-approve.
-            if ($accountData) {
-                Wallet::updateOrCreate([
-                    'user_id' => $employee->id,
-                ], [
-                    'currency' => 'NGN',
-                    'account_number' => $accountData->account_number,
-                    'account_name' => $accountData->account_name,
-                    'account_reference' => $accountData->account_reference,
-                    'bank_name' => $accountData->bank_name,
-                ]);
-            }
+            // Create wallet for the employee with virtual account details
+            Wallet::updateOrCreate([
+                'user_id' => $employee->id,
+            ], [
+                'currency' => 'NGN',
+                'account_number' => $accountData->account_number,
+                'account_name' => $accountData->account_name,
+                'account_reference' => $accountData->account_reference,
+                'bank_name' => $accountData->bank_name,
+            ]);
         });
 
-        // Always re-send the approval email on approve() so the merchant can
-        // manually re-trigger it for already-approved companies too.
         Mail::to($employee->email)->send(new EmployerApproved($employee));
 
-        try {
-            Notification::notify($employee, [
-                'category' => 'kyb',
-                'type' => 'kyb_approved',
-                'title' => $wasApproved ? 'Company Re-Approved' : 'Company Approved',
-                'body' => "Your company " . ($employee->company_name ?? $employee->name) . " has been " . ($wasApproved ? 're-' : '') . "approved. You can now process payrolls and onboard staff.",
-                'icon' => 'shield-check',
-                'deep_link' => '/dashboard',
-                'metadata' => [
-                    'employer_id' => $employee->id,
-                    'company_name' => $employee->company_name ?? $employee->name,
-                    'reapproved' => $wasApproved,
-                ],
-            ]);
-        } catch (\Throwable) {
-        }
-
-        $message = $wasApproved
-            ? 'Company re-approved successfully (approval email re-sent).'
-            : 'Employee approved and virtual account created successfully.';
-
-        return $this->sendResponse($employee->fresh('wallet'), $message);
+        return $this->sendResponse($employee->fresh('wallet'), 'Employee approved and virtual account created successfully.');
     }
 
     public function reject(Request $request, User $employee)
@@ -298,6 +187,10 @@ class EmployeeController extends Controller
         // Ensure the employee belongs to this merchant
         if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
             return $this->sendError('Employee not found or unauthorized', null, 404);
+        }
+
+        if ($employee->is_approved) {
+            return $this->sendError('Employee is already approved.', null, 400);
         }
 
         $request->validate([
@@ -311,19 +204,6 @@ class EmployeeController extends Controller
         return $this->sendResponse(null, 'Employee KYC rejected successfully.');
     }
 
-    public function hold(Request $request, User $employee)
-    {
-        $admin = $request->user();
-
-        if ($employee->type !== User::TYPE_EMPLOYEE || $employee->parent_id !== $admin->id) {
-            return $this->sendError('Employee not found or unauthorized', null, 404);
-        }
-
-        $employee->update(['status' => 'under_review']);
-
-        return $this->sendResponse(null, 'Employee KYC placed under review.');
-    }
-
     public function createDefaultRole(Request $request, User $employee)
     {
         $admin = $request->user();
@@ -333,11 +213,16 @@ class EmployeeController extends Controller
         }
 
         $employee = DB::transaction(function () use ($employee) {
-            $standardRoles = Role::ensureStandardRolesForEmployer((int) $employee->id);
-            $defaultRole = $standardRoles['admin'] ?? null;
-            if (!$defaultRole) {
-                throw new \RuntimeException('Unable to create default admin role.');
-            }
+            $defaultRole = Role::firstOrCreate(
+                [
+                    'employer_id' => $employee->id,
+                    'name' => 'admin',
+                ],
+                [
+                    'description' => 'Default admin role for employer account owner.',
+                    'status' => 'active',
+                ]
+            );
 
             $employee->update([
                 'role_id' => $defaultRole->id,
@@ -346,7 +231,7 @@ class EmployeeController extends Controller
             return $employee->fresh('role');
         });
 
-        return $this->sendResponse($employee, 'Default roles + permissions created successfully.');
+        return $this->sendResponse($employee, 'Default admin role created successfully.');
     }
 
     public function regenerateVirtualAccount(Request $request, User $employee)
