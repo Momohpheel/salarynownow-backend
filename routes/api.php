@@ -306,6 +306,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/profile', [EmployerProfileController::class, 'update']);
         Route::get('/dashboard', [EmployeeDashboardController::class, 'index']);
         Route::get('/wallet', [EmployeeWalletController::class, 'index']);
+        Route::get('/wallet/history', [EmployeeWalletController::class, 'history']);
         Route::get('/wallet/shared-meta', [EmployeeWalletController::class, 'sharedMeta']);
         Route::get('/me/owned-businesses', [EmployeeMeController::class, 'ownedBusinesses']);
 

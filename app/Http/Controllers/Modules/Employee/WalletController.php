@@ -148,4 +148,101 @@ class WalletController extends Controller
 
         return $this->sendResponse($data, 'Wallet shared metadata retrieved successfully');
     }
+
+    public function history(Request $request)
+    {
+        $actingUser = $request->user();
+        $employer = $actingUser->type === User::TYPE_EMPLOYEE && $actingUser->employer_id
+            ? $actingUser->employer()
+            : $actingUser;
+
+        if ($actingUser->employer_id) {
+            $employer = User::find($actingUser->employer_id);
+        }
+
+        $walletOwner = $employer->resolveSharedWalletOwner();
+        $wallet = $walletOwner->wallet;
+        if (!$wallet) {
+            return $this->sendError('Wallet not found for this user.', null, 404);
+        }
+
+        $logsQuery = $wallet->logs()
+            ->orderBy('created_at', 'desc')
+            ->limit(500);
+
+        $filterBusinessId = $request->input('filter_business_id');
+        if ($filterBusinessId !== null && $filterBusinessId !== '') {
+            $bizId = (int) $filterBusinessId;
+            $logsQuery->whereRaw(
+                "JSON_EXTRACT(wallet_logs.metadata, '$.business_user_id') = ?",
+                [$bizId]
+            );
+        }
+
+        $logs = $logsQuery->get();
+
+        $ogOwner = $employer->resolveSharedWalletOwner();
+        $businesses = $ogOwner->ownedBusinesses();
+        if ($businesses->isEmpty()) {
+            $fallbackBiz = $actingUser->type === User::TYPE_EMPLOYEE ? $actingUser : ($actingUser->employer()->first() ?? $actingUser);
+            $businesses = collect([$fallbackBiz]);
+        }
+        $businessOptions = $businesses->map(function ($biz) {
+            return [
+                'id' => $biz->id,
+                'company_name' => $biz->company_name ?? $biz->name,
+            ];
+        })->values()->all();
+
+        $transactions = $logs->map(function($log) {
+            $desc = strtolower((string) ($log->description ?? ''));
+            $typeRaw = strtolower((string) $log->type);
+            $isReversal = $typeRaw === 'reversal'
+                || str_contains($desc, 'reverse')
+                || str_contains($desc, 'reversal')
+                || str_contains($desc, 'refund for failed');
+
+            if ($isReversal) {
+                $typeLabel = 'Reversal';
+                $amountPrefix = '+ ';
+                $status = 'Reversed';
+            } elseif ($log->type === 'credit') {
+                $typeLabel = '+ Topup';
+                $amountPrefix = '+ ';
+                $status = 'Confirmed';
+            } else {
+                $typeLabel = '- Withdrawal';
+                $amountPrefix = '- ';
+                $status = 'Confirmed';
+            }
+
+            return [
+                'date' => $log->created_at->format('d M Y, H:i'),
+                'type' => $typeLabel,
+                'is_reversal' => $isReversal,
+                'amount' => $amountPrefix . '₦' . number_format((float) $log->amount, 2),
+                'amount_raw' => (float) $log->amount,
+                'status' => $status,
+                'description' => (string) ($log->description ?? ''),
+                'reference' => $log->metadata['transaction_reference']
+                    ?? $log->metadata['failed_reference']
+                    ?? ($log->metadata['reference'] ?? '-'),
+            ];
+        });
+
+        $data = [
+            'available_balance' => '₦' . number_format($wallet->balance, 2),
+            'balance' => (float) $wallet->balance,
+            'transaction_count' => $logs->count(),
+            'account_details' => [
+                'account_number' => $wallet->account_number,
+                'account_name' => $wallet->account_name,
+                'bank_name' => $wallet->bank_name,
+            ],
+            'business_options' => $businessOptions,
+            'transactions' => $transactions,
+        ];
+
+        return $this->sendResponse($data, 'Wallet history retrieved successfully');
+    }
 }
