@@ -23,7 +23,7 @@ trait ResolvesBusinessContext
         $ogOwner = $actingUser->resolveSharedWalletOwner();
         $ownerUserId = (int) $ogOwner->id;
 
-        $ownedBusinesses = $ogOwner->ownedBusinesses()->get();
+        $ownedBusinesses = $ogOwner->ownedBusinesses();
         $allBusinessIds = $ownedBusinesses->pluck('id')->map(fn($id) => (int) $id)->all();
 
         $requested = $request->input('business_id');
