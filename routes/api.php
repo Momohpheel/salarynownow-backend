@@ -26,6 +26,7 @@ use App\Http\Controllers\Modules\Admin\TransactionController as AdminTransaction
 use App\Http\Controllers\Modules\Admin\TeamController as AdminTeamController;
 use App\Http\Controllers\Modules\Admin\SettingsController as AdminSettingsController;
 use App\Http\Controllers\Modules\Admin\FeeConfigController as AdminFeeConfigController;
+use App\Http\Controllers\Modules\Admin\OwnerGroupController as AdminOwnerGroupController;
 use App\Http\Controllers\Modules\SuperAdmin\WalletController as SuperAdminWalletController;
 use App\Http\Controllers\Modules\SuperAdmin\PayrollController as SuperAdminPayrollController;
 use App\Http\Controllers\Modules\SuperAdmin\PensionController as SuperAdminPensionController;
@@ -36,6 +37,8 @@ use App\Http\Controllers\Modules\SuperAdmin\LendersController as SuperAdminLende
 use App\Http\Controllers\Modules\SuperAdmin\AnalyticsController as SuperAdminAnalyticsController;
 use App\Http\Controllers\Modules\SuperAdmin\TransactionController as SuperAdminTransactionController;
 use App\Http\Controllers\Modules\SuperAdmin\FeeConfigController as SuperAdminFeeConfigController;
+use App\Http\Controllers\Modules\SuperAdmin\CompaniesController as SuperAdminCompaniesController;
+use App\Http\Controllers\Modules\SuperAdmin\OwnerGroupController as SuperAdminOwnerGroupController;
 use App\Http\Controllers\Modules\Partner\RegistrationController as PartnerRegistrationController;
 use App\Http\Controllers\Modules\Partner\LoginController as PartnerLoginController;
 use App\Http\Controllers\Modules\Partner\ForgotPasswordController as PartnerForgotPasswordController;
@@ -61,6 +64,7 @@ use App\Http\Controllers\Modules\SuperAdmin\DashboardController as SuperAdminDas
 use App\Http\Controllers\Modules\SuperAdmin\LoginController as SuperAdminLoginController;
 use App\Http\Controllers\Modules\SuperAdmin\MerchantController;
 use App\Http\Controllers\Webhooks\SarepayWebhookController;
+use App\Http\Controllers\Modules\Employee\MeController as EmployeeMeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -93,6 +97,13 @@ Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('sup
     Route::post('/merchants/{merchant}/suspend', [MerchantController::class, 'suspend']);
     Route::post('/merchants/{merchant}/activate', [MerchantController::class, 'activate']);
     Route::post('/merchants/{merchant}/update', [MerchantController::class, 'update']);
+
+    // Companies (TYPE_EMPLOYEE, full-platform scope)
+    Route::get('/companies', [SuperAdminCompaniesController::class, 'index']);
+    Route::get('/companies/owner-groups', [SuperAdminOwnerGroupController::class, 'index']);
+    Route::get('/companies/{company}', [SuperAdminCompaniesController::class, 'show']);
+    Route::post('/companies/{company}/deactivate', [SuperAdminCompaniesController::class, 'deactivate']);
+    Route::post('/companies/{company}/link-to-owner-group', [SuperAdminCompaniesController::class, 'linkToOwnerGroup']);
 
     // Wallet oversight (full-platform scope)
     Route::get('/wallets', [SuperAdminWalletController::class, 'index']);
@@ -147,6 +158,20 @@ Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('sup
     Route::get('/analytics', [SuperAdminAnalyticsController::class, 'index']);
 });
 
+// Super-admin (hyphenated prefix) – mirrors companies & owner-group routes above
+Route::post('/super-admin/login', [SuperAdminLoginController::class, 'login'])->middleware('throttle:10,1');
+Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('super-admin')->group(function () {
+    Route::post('/logout', [SuperAdminLoginController::class, 'logout']);
+    Route::get('/me', fn (\Illuminate\Http\Request $r) => (new \App\Http\Controllers\Controller())->sendResponse($r->user()->makeHidden(['password', 'remember_token']), 'OK'));
+
+    // Companies (TYPE_EMPLOYEE, full-platform scope, no children gating)
+    Route::get('/companies', [SuperAdminCompaniesController::class, 'index']);
+    Route::get('/companies/owner-groups', [SuperAdminOwnerGroupController::class, 'index']);
+    Route::get('/companies/{company}', [SuperAdminCompaniesController::class, 'show']);
+    Route::post('/companies/{company}/deactivate', [SuperAdminCompaniesController::class, 'deactivate']);
+    Route::post('/companies/{company}/link-to-owner-group', [SuperAdminCompaniesController::class, 'linkToOwnerGroup']);
+});
+
 // Employee Module
 Route::post('/employee/register', [EmployeeRegistrationController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/employee/login', [EmployeeLoginController::class, 'login'])->middleware('throttle:10,1');
@@ -194,8 +219,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/payrolls', [AdminOperationsController::class, 'payrolls']);
         Route::get('/staff', [AdminStaffController::class, 'index']);
         Route::get('/companies', [AdminCompanyController::class, 'index']);
+        Route::get('/companies/owner-groups', [AdminOwnerGroupController::class, 'index']);
         Route::get('/companies/{company}', [AdminCompanyController::class, 'show']);
         Route::post('/companies/{company}/deactivate', [AdminCompanyController::class, 'deactivate']);
+        Route::post('/companies/{company}/link-to-owner-group', [AdminCompanyController::class, 'linkToOwnerGroup']);
         Route::post('/companies/{company}/wallet/credit', [AdminWalletController::class, 'credit']);
         Route::post('/companies/{company}/wallet/debit', [AdminWalletController::class, 'debit']);
         Route::get('/charges', [AdminChargeController::class, 'index']);
@@ -279,6 +306,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/profile', [EmployerProfileController::class, 'update']);
         Route::get('/dashboard', [EmployeeDashboardController::class, 'index']);
         Route::get('/wallet', [EmployeeWalletController::class, 'index']);
+        Route::get('/wallet/shared-meta', [EmployeeWalletController::class, 'sharedMeta']);
+        Route::get('/me/owned-businesses', [EmployeeMeController::class, 'ownedBusinesses']);
         
         // Staff Management
         Route::get('/staff', [StaffController::class, 'index']);

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\WalletInflow;
 use App\Models\Charge;
 use App\Models\FeeConfig;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletLog;
 use App\Traits\ResolvesFeeConfig;
@@ -112,8 +113,23 @@ class SarepayWebhookController extends Controller
 
         try {
             $result = DB::transaction(function () use ($wallet, $amount, $transactionReference, $data) {
+                $originalWalletOwner = $wallet->user;
+                $creditWallet = $wallet;
+                $walletOwner = $originalWalletOwner;
+                $originalBusinessUserId = null;
+
+                if ($originalWalletOwner && $originalWalletOwner->type === User::TYPE_EMPLOYEE) {
+                    $walletOwner = $originalWalletOwner->resolveSharedWalletOwner();
+                    $creditWallet = $walletOwner->wallet;
+                    $originalBusinessUserId = $originalWalletOwner->id;
+                    if (!$creditWallet) {
+                        Log::error("Shared wallet not found for TYPE_EMPLOYEE user {$originalWalletOwner->id}, resolved owner {$walletOwner->id}");
+                        throw new \RuntimeException("Shared wallet not found for owner group: " . ($walletOwner->company_name ?? $walletOwner->name ?? 'Unknown'));
+                    }
+                }
+
                 $alreadyProcessed = WalletLog::query()
-                    ->where('wallet_id', $wallet->id)
+                    ->where('wallet_id', $creditWallet->id)
                     ->whereJsonContains('metadata->transaction_reference', $transactionReference)
                     ->lockForUpdate()
                     ->exists();
@@ -121,7 +137,6 @@ class SarepayWebhookController extends Controller
                     return ['replayed' => true];
                 }
 
-                $walletOwner = $wallet->user;
                 $chargeAmount = 0.0;
                 $feeScopeLabel = null;
                 $feeCalculationLabel = null;
@@ -180,17 +195,18 @@ class SarepayWebhookController extends Controller
                 if ($netAmount < 0) {
                     $netAmount = 0;
                 }
-                $balanceBefore = (float) $wallet->balance;
+                $balanceBefore = (float) $creditWallet->balance;
 
-                $wallet->increment('balance', $netAmount);
+                $creditWallet->increment('balance', $netAmount);
 
-                $walletLog = $wallet->logs()->create([
+                $walletLog = $creditWallet->logs()->create([
                     'amount' => $amount,
                     'type' => 'credit',
                     'description' => "Wallet Topup via Virtual Account",
                     'balance_before' => $balanceBefore,
-                    'balance_after' => $wallet->fresh()->balance,
-                    'metadata' => [
+                    'balance_after' => $creditWallet->fresh()->balance,
+                    'metadata' => array_filter([
+                        'original_business_user_id' => $originalBusinessUserId,
                         'transaction_reference' => $transactionReference,
                         'provider' => 'Sarepay',
                         'sender_name' => $data['sender']['originatorName'] ?? 'Unknown',
@@ -202,10 +218,10 @@ class SarepayWebhookController extends Controller
                         'fee_scope_label' => $feeScopeLabel,
                         'fee_calculation_label' => $feeCalculationLabel,
                         'fee_breakdown' => $feeBreakdown,
-                    ]
+                    ], fn($v) => $v !== null)
                 ]);
 
-                $user = $wallet->user;
+                $user = $walletOwner;
                 return [
                     'walletLog' => $walletLog,
                     'user' => $user,

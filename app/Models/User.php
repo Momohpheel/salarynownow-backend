@@ -58,7 +58,8 @@ use Laravel\Sanctum\HasApiTokens;
     'otp',
     'otp_expires_at',
     'otp_attempts',
-    'parent_id'
+    'parent_id',
+    'owner_group_user_id',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -269,5 +270,53 @@ class User extends Authenticatable
             return false;
         }
         return $this->role->permissions->pluck('name')->contains($permName);
+    }
+
+    public function ownerGroupOwner()
+    {
+        if (is_null($this->owner_group_user_id) || (int) $this->owner_group_user_id === (int) $this->id) {
+            return $this;
+        }
+        return $this->belongsTo(User::class, 'owner_group_user_id');
+    }
+
+    public function ownedBusinesses()
+    {
+        $ownerId = $this->resolveSharedWalletOwner()->id;
+
+        $subs = static::where('owner_group_user_id', $ownerId)
+            ->where('type', self::TYPE_EMPLOYEE)
+            ->where('id', '!=', $ownerId)
+            ->get();
+
+        $owner = static::find($ownerId);
+
+        if ($owner && $owner->type === self::TYPE_EMPLOYEE) {
+            return collect([$owner])->merge($subs)->unique('id')->values();
+        }
+
+        return $subs;
+    }
+
+    public function resolveSharedWalletOwner(): User
+    {
+        if (is_null($this->owner_group_user_id) || (int) $this->owner_group_user_id === (int) $this->id) {
+            return $this;
+        }
+
+        if ($this->relationLoaded('ownerGroupOwner')) {
+            $related = $this->getRelation('ownerGroupOwner');
+            if ($related instanceof User) {
+                return $related;
+            }
+        }
+
+        return $this->ownerGroupOwner ?? $this;
+    }
+
+    public function scopeInOwnerGroup($query, int $ownerUserId)
+    {
+        return $query->where('owner_group_user_id', $ownerUserId)
+            ->where('type', self::TYPE_EMPLOYEE);
     }
 }

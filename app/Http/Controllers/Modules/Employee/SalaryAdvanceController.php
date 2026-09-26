@@ -6,15 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\SalaryAdvance;
 use App\Models\Notification;
 use App\Models\User;
+use App\Traits\ResolvesBusinessContext;
 use Illuminate\Http\Request;
 
 class SalaryAdvanceController extends Controller
 {
+    use ResolvesBusinessContext;
+
     public function index(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
 
-        $advances = SalaryAdvance::where('user_id', $employerId)
+        $advances = SalaryAdvance::whereIn('user_id', $scope->business_ids)
             ->with('staff:id,name,email')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -35,9 +38,9 @@ class SalaryAdvanceController extends Controller
 
     public function show(Request $request, SalaryAdvance $salaryAdvance)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
 
-        if ($salaryAdvance->user_id !== $employerId) {
+        if (!in_array((int) $salaryAdvance->user_id, $scope->business_ids, true)) {
             return $this->sendError('Unauthorized.', null, 403);
         }
 
@@ -46,8 +49,8 @@ class SalaryAdvanceController extends Controller
 
     public function approve(Request $request, SalaryAdvance $salaryAdvance)
     {
-        $employerId = $request->user()->getEmployerId();
-        if ($salaryAdvance->user_id !== $employerId) {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        if (!in_array((int) $salaryAdvance->user_id, $scope->business_ids, true)) {
             return $this->sendError('Unauthorized.', null, 403);
         }
         if ($salaryAdvance->status !== 'pending' && $salaryAdvance->status !== 'referred') {
@@ -86,8 +89,8 @@ class SalaryAdvanceController extends Controller
 
     public function reject(Request $request, SalaryAdvance $salaryAdvance)
     {
-        $employerId = $request->user()->getEmployerId();
-        if ($salaryAdvance->user_id !== $employerId) {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        if (!in_array((int) $salaryAdvance->user_id, $scope->business_ids, true)) {
             return $this->sendError('Unauthorized.', null, 403);
         }
         if ($salaryAdvance->status !== 'pending' && $salaryAdvance->status !== 'referred') {

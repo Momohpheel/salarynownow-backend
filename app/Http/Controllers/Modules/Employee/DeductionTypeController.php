@@ -4,16 +4,22 @@ namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\DeductionType;
+use App\Traits\ResolvesBusinessContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class DeductionTypeController extends Controller
 {
+    use ResolvesBusinessContext;
+
     public function index(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
 
-        $query = DeductionType::forEmployer($employerId)->orderBy('is_system', 'desc')->orderBy('name');
+        $query = DeductionType::where(function ($q) use ($scope) {
+            $q->whereIn('user_id', $scope->business_ids)
+                ->orWhere('is_system', true);
+        })->orderBy('is_system', 'desc')->orderBy('name');
 
         if ($request->filled('active_only')) {
             $query->active();
@@ -39,10 +45,10 @@ class DeductionTypeController extends Controller
 
     public function store(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
+        $singleBusinessId = $this->requireSingleBusinessScope($request, $request->user());
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', Rule::unique('deduction_types', 'name')->where(fn ($q) => $q->where('user_id', $employerId)->whereNull('deleted_at'))],
+            'name' => ['required', 'string', 'max:255', Rule::unique('deduction_types', 'name')->where(fn ($q) => $q->where('user_id', $singleBusinessId)->whereNull('deleted_at'))],
             'description' => ['nullable', 'string', 'max:1000'],
             'default_amount' => ['nullable', 'numeric', 'min:0'],
             'is_percentage' => ['nullable', 'boolean'],
@@ -55,7 +61,7 @@ class DeductionTypeController extends Controller
         }
 
         $deduction = DeductionType::create(array_merge($validated, [
-            'user_id' => $employerId,
+            'user_id' => $singleBusinessId,
             'default_amount' => $validated['default_amount'] ?? 0,
             'is_percentage' => $validated['is_percentage'] ?? false,
             'is_active' => $validated['is_active'] ?? true,
@@ -67,14 +73,14 @@ class DeductionTypeController extends Controller
 
     public function update(Request $request, DeductionType $deductionType)
     {
-        $employerId = $request->user()->getEmployerId();
+        $singleBusinessId = $this->requireSingleBusinessScope($request, $request->user());
 
-        if ($deductionType->is_system || $deductionType->user_id !== $employerId) {
+        if ($deductionType->is_system || $deductionType->user_id !== $singleBusinessId) {
             return $this->sendError('Only custom deduction types can be edited.', null, 403);
         }
 
         $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:255', Rule::unique('deduction_types', 'name')->where(fn ($q) => $q->where('user_id', $employerId)->whereNull('deleted_at'))->ignore($deductionType->id)],
+            'name' => ['sometimes', 'string', 'max:255', Rule::unique('deduction_types', 'name')->where(fn ($q) => $q->where('user_id', $singleBusinessId)->whereNull('deleted_at'))->ignore($deductionType->id)],
             'description' => ['nullable', 'string', 'max:1000'],
             'default_amount' => ['nullable', 'numeric', 'min:0'],
             'is_percentage' => ['nullable', 'boolean'],
@@ -95,9 +101,9 @@ class DeductionTypeController extends Controller
 
     public function destroy(Request $request, DeductionType $deductionType)
     {
-        $employerId = $request->user()->getEmployerId();
+        $singleBusinessId = $this->requireSingleBusinessScope($request, $request->user());
 
-        if ($deductionType->is_system || $deductionType->user_id !== $employerId) {
+        if ($deductionType->is_system || $deductionType->user_id !== $singleBusinessId) {
             return $this->sendError('Only custom deduction types can be deleted.', null, 403);
         }
 
@@ -108,14 +114,13 @@ class DeductionTypeController extends Controller
 
     public function toggle(Request $request, DeductionType $deductionType)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
 
-        if ($deductionType->user_id !== $employerId && !$deductionType->is_system) {
+        if (!in_array((int) $deductionType->user_id, $scope->business_ids, true) && !$deductionType->is_system) {
             return $this->sendError('Deduction type not found.', null, 404);
         }
 
-        if ($deductionType->user_id !== $employerId && $deductionType->is_system) {
-            // For system types, create a employer-level override by cloning an inactive copy per employer? Simpler: treat toggle as informational 403
+        if (!in_array((int) $deductionType->user_id, $scope->business_ids, true) && $deductionType->is_system) {
             return $this->sendError('System deduction types cannot be toggled. De-select them when configuring payroll to skip.', null, 403);
         }
 

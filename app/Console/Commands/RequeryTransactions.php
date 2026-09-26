@@ -69,7 +69,8 @@ class RequeryTransactions extends Command
                         $transaction->payslip->update(['status' => Payslip::STATUS_FAILED]);
 
                         $employer = $transaction->payslip->payroll->user;
-                        $employerWallet = $employer->wallet;
+                        $walletOwner = $employer->resolveSharedWalletOwner();
+                        $employerWallet = $walletOwner->wallet;
 
                         if ($employerWallet) {
                             $principalAmount = (float) $transaction->amount;
@@ -81,8 +82,20 @@ class RequeryTransactions extends Command
                                 ->orderBy('id', 'desc')
                                 ->first();
 
-                            if ($originalDebitLog && isset($originalDebitLog->metadata['charge_amount'])) {
-                                $storedFeeAmount = (float) $originalDebitLog->metadata['charge_amount'];
+                            if ($originalDebitLog) {
+                                $expectedWalletId = $walletOwner->wallet?->id;
+                                if ($expectedWalletId === null || (int) $originalDebitLog->wallet_id !== (int) $expectedWalletId) {
+                                    throw new \RuntimeException(sprintf(
+                                        'Reversal wallet mismatch: original debit log wallet_id=%s, expected shared wallet owner wallet_id=%s (business_user_id=%s, business=%s)',
+                                        $originalDebitLog->wallet_id,
+                                        $expectedWalletId ?? 'null',
+                                        $walletOwner->id,
+                                        $walletOwner->company_name ?? $walletOwner->name ?? 'Unknown'
+                                    ));
+                                }
+                                if (isset($originalDebitLog->metadata['charge_amount'])) {
+                                    $storedFeeAmount = (float) $originalDebitLog->metadata['charge_amount'];
+                                }
                             }
 
                             $totalRefund = $principalAmount + $storedFeeAmount;
@@ -105,6 +118,8 @@ class RequeryTransactions extends Command
                                 'balance_before' => $balanceBefore,
                                 'balance_after' => (float) $employerWallet->balance,
                                 'metadata' => [
+                                    'business_user_id' => $employer->id,
+                                    'business_company_name' => $employer->company_name ?? $employer->name ?? null,
                                     'transaction_id' => $transaction->id,
                                     'payslip_id' => $transaction->payslip_id,
                                     'payroll_id' => $transaction->payroll_id,
@@ -116,7 +131,7 @@ class RequeryTransactions extends Command
                                 ],
                             ]);
 
-                            $this->info("Refunded {$totalRefund} to employer {$employer->name} (principal + fee).");
+                            $this->info("Refunded {$totalRefund} to wallet owner {$walletOwner->name} (principal + fee).");
                         }
                         
                         $this->error("Transaction {$transaction->reference} marked as FAILED.");

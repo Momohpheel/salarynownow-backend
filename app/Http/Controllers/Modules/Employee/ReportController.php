@@ -9,23 +9,26 @@ use App\Models\Payroll;
 use App\Models\Payslip;
 use App\Models\SalaryAdvance;
 use App\Models\User;
+use App\Traits\ResolvesBusinessContext;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class ReportController extends Controller
 {
+    use ResolvesBusinessContext;
     /**
      * Payroll Summary Report
      */
     public function payrollSummary(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $businessIds = $scope->business_ids;
         $startDate = $request->query('start_date', now()->subYear()->format('Y-m-d'));
         $endDate = $request->query('end_date', now()->format('Y-m-d'));
         $startCarbon = Carbon::parse($startDate)->startOfDay();
         $endCarbon = Carbon::parse($endDate)->endOfDay();
 
-        $payrolls = Payroll::where('user_id', $employerId)
+        $payrolls = Payroll::whereIn('user_id', $businessIds)
             ->whereBetween(DB::raw('COALESCE(processed_at, created_at)'), [$startCarbon, $endCarbon])
             ->with('payslips')
             ->orderByRaw('COALESCE(processed_at, created_at) desc')
@@ -45,7 +48,7 @@ class ReportController extends Controller
             $cursor->addMonth();
         }
 
-        $monthlySpendAgg = Payroll::where('user_id', $employerId)
+        $monthlySpendAgg = Payroll::whereIn('user_id', $businessIds)
             ->whereBetween(DB::raw('COALESCE(processed_at, created_at)'), [$startCarbon, $endCarbon])
             ->select(
                 DB::raw('DATE_FORMAT(COALESCE(processed_at, created_at), "%b %Y") as month'),
@@ -98,15 +101,16 @@ class ReportController extends Controller
      */
     public function staffPayments(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $businessIds = $scope->business_ids;
         $startDate = $request->query('start_date', now()->startOfMonth()->format('Y-m-d'));
         $endDate = $request->query('end_date', now()->format('Y-m-d'));
         $department = $request->query('department');
         $startCarbon = Carbon::parse($startDate)->startOfDay();
         $endCarbon = Carbon::parse($endDate)->endOfDay();
 
-        $query = Payslip::whereHas('payroll', function($q) use ($employerId, $startCarbon, $endCarbon) {
-            $q->where('user_id', $employerId)
+        $query = Payslip::whereHas('payroll', function($q) use ($businessIds, $startCarbon, $endCarbon) {
+            $q->whereIn('user_id', $businessIds)
               ->whereBetween(DB::raw('COALESCE(processed_at, created_at)'), [$startCarbon, $endCarbon]);
         })->with(['user', 'payroll']);
 
@@ -198,14 +202,15 @@ class ReportController extends Controller
      */
     public function advanceReport(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $businessIds = $scope->business_ids;
         $startDate = $request->query('start_date', now()->subYear()->format('Y-m-d'));
         $endDate = $request->query('end_date', now()->format('Y-m-d'));
         $status = $request->query('status');
         $startCarbon = Carbon::parse($startDate)->startOfDay();
         $endCarbon = Carbon::parse($endDate)->endOfDay();
 
-        $query = SalaryAdvance::where('user_id', $employerId)
+        $query = SalaryAdvance::whereIn('user_id', $businessIds)
             ->whereBetween('created_at', [$startCarbon, $endCarbon])
             ->with(['staff', 'user']);
 

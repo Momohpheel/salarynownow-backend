@@ -10,6 +10,7 @@ use App\Models\PayrollUploadFlag;
 use App\Models\Payslip;
 use App\Models\PayslipDeduction;
 use App\Models\User;
+use App\Traits\ResolvesBusinessContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log as FacadesLog;
@@ -20,6 +21,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class PayrollController extends Controller
 {
+    use ResolvesBusinessContext;
     private function buildLegacyAwareDeductionBreakdown($payslip)
     {
         $rows = collect();
@@ -364,11 +366,15 @@ class PayrollController extends Controller
         if (!$user) {
             return $this->sendError('Unauthenticated.', [], 401);
         }
-        $employerId = $user->getEmployerId();
-        $employer = User::with('wallet')->find($employerId);
-        $wallet = $employer->wallet;
+        $singleBusinessId = $this->requireSingleBusinessScope($request, $user);
+        $employer = User::with('wallet')->find($singleBusinessId);
+        if (!$employer) {
+            return $this->sendError('Business not found.', null, 404);
+        }
+        $walletOwner = $employer->resolveSharedWalletOwner();
+        $wallet = $walletOwner->wallet;
 
-        return DB::transaction(function () use ($request, $employer, $wallet) {
+        return DB::transaction(function () use ($request, $employer, $wallet, $singleBusinessId) {
             $totalNetToPay = 0;
             $staffCount = 0;
             $totalGross = 0;
@@ -376,7 +382,7 @@ class PayrollController extends Controller
 
             $payroll = Payroll::create([
                 'reference' => $this->generatePayrollReference(),
-                'user_id' => $employer->id,
+                'user_id' => $singleBusinessId,
                 'description' => now()->format('F Y') . ' Salary',
                 'amount' => 0,
                 'staff_count' => 0,
@@ -551,17 +557,24 @@ class PayrollController extends Controller
 
     public function index(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $isAll = $scope->mode === 'all';
 
-        $payrolls = Payroll::where('user_id', $employerId)
-            ->orderBy('processed_at', 'desc')
-            ->get();
+        $query = Payroll::whereIn('user_id', $scope->business_ids)
+            ->orderBy('processed_at', 'desc');
 
-        $data = $payrolls->map(function ($p) {
+        if ($isAll) {
+            $query->join('users', 'users.id', '=', 'payrolls.user_id')
+                ->addSelect('payrolls.*', 'users.company_name as company_name');
+        }
+
+        $payrolls = $query->get();
+
+        $data = $payrolls->map(function ($p) use ($isAll) {
             $hasFailureSummary = Schema::hasColumn('payrolls', 'failure_summary');
             $summary = $hasFailureSummary ? ($p->failure_summary ?? null) : null;
             $failedCount = is_array($summary) ? (int) ($summary['total'] ?? 0) : 0;
-            return [
+            $row = [
                 'id' => $p->id,
                 'reference' => $p->reference,
                 'run_date' => $p->processed_at->format('d M Y'),
@@ -572,6 +585,10 @@ class PayrollController extends Controller
                 'failed_count' => $failedCount,
                 'failure_summary' => $summary,
             ];
+            if ($isAll) {
+                $row['company_name'] = $p->company_name ?? null;
+            }
+            return $row;
         });
 
         return $this->sendResponse($data, 'Payroll history retrieved successfully');
@@ -579,10 +596,18 @@ class PayrollController extends Controller
 
     public function show(Request $request, $id)
     {
-        $employerId = $request->user()->getEmployerId();
-        $payroll = Payroll::where('user_id', $employerId)
-            ->with(['payslips.user', 'payslips.deductions'])
-            ->findOrFail($id);
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $isAll = $scope->mode === 'all';
+
+        $query = Payroll::whereIn('user_id', $scope->business_ids)
+            ->with(['payslips.user', 'payslips.deductions']);
+
+        if ($isAll) {
+            $query->join('users', 'users.id', '=', 'payrolls.user_id')
+                ->addSelect('payrolls.*', 'users.company_name as company_name');
+        }
+
+        $payroll = $query->findOrFail($id);
 
         $buildBreakdown = function ($p) {
             return $this->buildLegacyAwareDeductionBreakdown($p);
@@ -651,6 +676,10 @@ class PayrollController extends Controller
                 ];
             }),
         ];
+
+        if ($isAll) {
+            $data['company_name'] = $payroll->company_name ?? null;
+        }
 
         return $this->sendResponse($data, 'Payroll details retrieved successfully');
     }

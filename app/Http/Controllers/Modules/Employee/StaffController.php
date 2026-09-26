@@ -8,6 +8,7 @@ use App\Mail\StaffInvitation;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\Sarepay\SarepayService;
+use App\Traits\ResolvesBusinessContext;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +22,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class StaffController extends Controller
 {
+    use ResolvesBusinessContext;
+
     protected $sarepayService;
 
     public function __construct(SarepayService $sarepayService)
@@ -30,8 +33,8 @@ class StaffController extends Controller
 
     public function store(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
-        $employer = User::find($employerId);
+        $singleBusinessId = $this->requireSingleBusinessScope($request, $request->user());
+        $employer = User::find($singleBusinessId);
 
         $request->validate([
             // Personal Information
@@ -69,7 +72,7 @@ class StaffController extends Controller
             'phone_number' => $request->phone_number,
             'password' => Hash::make($password), // Random password since they'll be invited
             'type' => User::TYPE_STAFF,
-            'parent_id' => $employerId,
+            'parent_id' => $singleBusinessId,
             'job_title' => $request->job_title,
             'department' => $request->department,
             'start_date' => $request->start_date,
@@ -102,33 +105,40 @@ class StaffController extends Controller
 
     public function index(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
-        $query = User::where('parent_id', $employerId)
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $isAll = $scope->mode === 'all';
+
+        $query = User::whereIn('parent_id', $scope->business_ids)
             ->staff()
             ->with([
                 'staffAdvances',
                 'payslips.payroll',
             ]);
 
+        if ($isAll) {
+            $query->join('users as employer_users', 'employer_users.id', '=', 'users.parent_id')
+                ->addSelect('users.*', 'employer_users.company_name as company_name');
+        }
+
         // Search by name, email, or phone
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%");
+                $q->where('users.name', 'like', "%{$search}%")
+                  ->orWhere('users.email', 'like', "%{$search}%")
+                  ->orWhere('users.phone_number', 'like', "%{$search}%");
             });
         }
 
         // Filter by status
         if ($request->has('status') && $request->status !== 'All') {
-            $query->where('invitation_status', $request->status);
+            $query->where('users.invitation_status', $request->status);
         }
 
-        $staff = $query->orderBy('created_at', 'desc')->get();
+        $staff = $query->orderBy('users.created_at', 'desc')->get();
 
-        $data = $staff->map(function($s) {
-            return [
+        $data = $staff->map(function($s) use ($isAll) {
+            $row = [
                 'id' => $s->id,
                 'name' => $s->name,
                 'email' => $s->email,
@@ -169,6 +179,10 @@ class StaffController extends Controller
                     ];
                 })->values(),
             ];
+            if ($isAll) {
+                $row['company_name'] = $s->company_name ?? null;
+            }
+            return $row;
         });
 
         return $this->sendResponse($data, 'Staff list retrieved successfully');
@@ -176,9 +190,9 @@ class StaffController extends Controller
 
     public function update(Request $request, User $staff)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
 
-        if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
+        if (!in_array((int) $staff->parent_id, $scope->business_ids, true) || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
@@ -213,9 +227,9 @@ class StaffController extends Controller
 
     public function toggleStatus(Request $request, User $staff)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
 
-        if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
+        if (!in_array((int) $staff->parent_id, $scope->business_ids, true) || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
@@ -233,13 +247,13 @@ class StaffController extends Controller
 
     public function invite(Request $request, User $staff)
     {
-        $employerId = $request->user()->getEmployerId();
+        $scope = $this->resolveBusinessScope($request, $request->user());
 
-        if ($staff->parent_id !== $employerId || $staff->type !== User::TYPE_STAFF) {
+        if (!in_array((int) $staff->parent_id, $scope->business_ids, true) || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
-        $employer = User::find($employerId);
+        $employer = User::find($staff->parent_id);
         
         // Create a password reset token
         $token = Password::createToken($staff);
@@ -261,7 +275,7 @@ class StaffController extends Controller
                 'body' => 'An invitation email has been sent to ' . $staff->email,
                 'icon' => 'user-plus',
                 'deep_link' => '/reset-password?token=' . $token . '&email=' . urlencode($staff->email) . '&role=staff',
-                'metadata' => ['invited_by' => $request->user()->id, 'employer_id' => $employerId],
+                'metadata' => ['invited_by' => $request->user()->id, 'employer_id' => $staff->parent_id],
             ]);
             Notification::notify($request->user(), [
                 'category' => 'team',
@@ -280,8 +294,8 @@ class StaffController extends Controller
 
     public function bulkUpload(Request $request)
     {
-        $employerId = $request->user()->getEmployerId();
-        $employer = User::find($employerId);
+        $singleBusinessId = $this->requireSingleBusinessScope($request, $request->user());
+        $employer = User::find($singleBusinessId);
 
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt,xls,xlsx', 'max:2048'],
@@ -414,7 +428,7 @@ class StaffController extends Controller
                 'nhf' => $rowData['nhf'] ?? 0,
                 'net_salary' => $rowData['net_salary'] ?? 0,
                 'type' => User::TYPE_STAFF,
-                'parent_id' => $employerId,
+                'parent_id' => $singleBusinessId,
                 'password' => Hash::make($password),
                 'is_approved' => true,
                 'invitation_status' => 'Not invited',

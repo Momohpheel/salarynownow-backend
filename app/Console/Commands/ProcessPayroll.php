@@ -67,7 +67,8 @@ class ProcessPayroll extends Command
             $this->info("Processing payroll ID: {$payroll->id} for employer: {$employerName}");
 
             $payroll->update(['status' => Payroll::STATUS_PROCESSING]);
-            $employerWallet = $employer->wallet;
+            $walletOwner = $employer->resolveSharedWalletOwner();
+            $employerWallet = $walletOwner->wallet;
             $availableBalance = (float) ($employerWallet?->balance ?? 0);
             $hasFailures = false;
             $hasPayslipFailureReasonCol = Schema::hasColumn('payslips', 'failure_reason');
@@ -112,8 +113,9 @@ class ProcessPayroll extends Command
 
                 try {
                     if (! $employerWallet) {
-                        $this->error("Employer wallet not found for {$payroll->user->name}");
-                        throw new \Exception("Employer wallet not found.", 1001);
+                        $ownerGroup = $walletOwner->company_name ?? $walletOwner->name ?? 'Unknown';
+                        $this->error("Employer wallet not found for {$payroll->user->name} (owner group: {$ownerGroup})");
+                        throw new \Exception("Employer wallet not found for owner group: {$ownerGroup}.", 1001);
                     }
 
                     $feeResolution = $this->resolveAndComputeFee(
@@ -228,6 +230,8 @@ class ProcessPayroll extends Command
                         'balance_before' => $balanceBefore,
                         'balance_after' => (float) $employerWallet->balance,
                         'metadata' => [
+                            'business_user_id' => $employer->id,
+                            'business_company_name' => $employer->company_name ?? $employer->name ?? null,
                             'payroll_id' => $payroll->id,
                             'payslip_id' => $payslip->id,
                             'transaction_reference' => $reference,

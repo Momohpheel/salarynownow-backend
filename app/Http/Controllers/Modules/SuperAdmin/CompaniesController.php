@@ -1,19 +1,16 @@
 <?php
 
-namespace App\Http\Controllers\Modules\Admin;
+namespace App\Http\Controllers\Modules\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 
-class CompanyController extends Controller
+class CompaniesController extends Controller
 {
     public function index(Request $request)
     {
-        $admin = $request->user();
-
-        $query = User::where('type', User::TYPE_EMPLOYEE)
-            ->where('parent_id', $admin->id);
+        $query = User::where('type', User::TYPE_EMPLOYEE);
 
         if ($request->filled('owner_group_user_id')) {
             $query->where('owner_group_user_id', (int) $request->input('owner_group_user_id'));
@@ -22,7 +19,9 @@ class CompanyController extends Controller
         if ($request->search) {
             $query->where(function($q) use ($request) {
                 $q->where('company_name', 'like', "%{$request->search}%")
-                  ->orWhere('rc_number', 'like', "%{$request->search}%");
+                  ->orWhere('rc_number', 'like', "%{$request->search}%")
+                  ->orWhere('name', 'like', "%{$request->search}%")
+                  ->orWhere('email', 'like', "%{$request->search}%");
             });
         }
 
@@ -46,6 +45,8 @@ class CompanyController extends Controller
                 'kyb_status' => $user->is_approved ? 'approved' : ($user->status ?? 'pending'),
                 'is_approved' => (bool) $user->is_approved,
                 'has_kyb_documents' => (bool) ($user->cac_certificate_path || $user->director_id_path || $user->utility_bill_path),
+                'parent_id' => $user->parent_id,
+                'owner_group_user_id' => $user->owner_group_user_id,
                 'created_at' => $user->created_at?->toIso8601String(),
             ];
         };
@@ -76,17 +77,13 @@ class CompanyController extends Controller
 
     public function show(Request $request, User $company)
     {
-        $admin = $request->user();
-
-        if ($company->type !== User::TYPE_EMPLOYEE || $company->parent_id !== $admin->id) {
-            return $this->sendError('Company not found or unauthorized', null, 404);
+        if ($company->type !== User::TYPE_EMPLOYEE) {
+            return $this->sendError('Company not found', null, 404);
         }
 
         $company->load(['staff', 'payrolls.transactions.payslip.user', 'wallet']);
         $company->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
 
-        // Ensure staff relation only contains actual staff (TYPE_STAFF) since the
-        // generic relation also picks up other children (e.g. team/admin members).
         $staff = $company->getRelation('staff')->filter(function ($u) {
             return $u->type === User::TYPE_STAFF;
         })->values();
@@ -101,10 +98,8 @@ class CompanyController extends Controller
 
     public function deactivate(Request $request, User $company)
     {
-        $admin = $request->user();
-
-        if ($company->type !== User::TYPE_EMPLOYEE || $company->parent_id !== $admin->id) {
-            return $this->sendError('Company not found or unauthorized', null, 404);
+        if ($company->type !== User::TYPE_EMPLOYEE) {
+            return $this->sendError('Company not found', null, 404);
         }
 
         $company->update(['is_active' => false]);
@@ -114,10 +109,8 @@ class CompanyController extends Controller
 
     public function linkToOwnerGroup(Request $request, User $company)
     {
-        $admin = $request->user();
-
-        if ($company->type !== User::TYPE_EMPLOYEE || $company->parent_id !== $admin->id) {
-            return $this->sendError('Company not found or unauthorized', null, 404);
+        if ($company->type !== User::TYPE_EMPLOYEE) {
+            return $this->sendError('Company not found', null, 404);
         }
 
         $validated = $request->validate([
@@ -127,12 +120,11 @@ class CompanyController extends Controller
         $ownerGroupUserId = (int) $validated['owner_group_user_id'];
 
         $ownerUser = User::where('type', User::TYPE_EMPLOYEE)
-            ->where('parent_id', $admin->id)
             ->where('id', $ownerGroupUserId)
             ->first();
 
         if (!$ownerUser) {
-            return $this->sendError('owner_group_user_id must be a TYPE_EMPLOYEE under this admin', null, 403);
+            return $this->sendError('owner_group_user_id must be a TYPE_EMPLOYEE user', null, 403);
         }
 
         $company->update([
