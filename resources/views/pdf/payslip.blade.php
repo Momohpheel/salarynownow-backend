@@ -101,14 +101,14 @@
             <tr>
                 <td colspan="2"><strong>Deductions:</strong></td>
             </tr>
-            <tr>
+            <!-- <tr>
                 <td>Pension (Employee)</td>
                 <td>-{{ number_format($payslip->pension_employee, 2) }}</td>
-            </tr>
-            <tr>
+            </tr> -->
+            <!-- <tr>
                 <td>Pension (Employer)</td>
                 <td>-{{ number_format($payslip->pension_employer, 2) }}</td>
-            </tr>
+            </tr> -->
             <tr>
                 <td>Tax (PAYE)</td>
                 <td>-{{ number_format($payslip->tax_deduction, 2) }}</td>
