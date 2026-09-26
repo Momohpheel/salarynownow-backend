@@ -46,6 +46,7 @@ use Laravel\Sanctum\HasApiTokens;
     'pension_employee',
     'pension_employer',
     'invitation_status',
+    'status',
     'tax_deduction',
     'nhf',
     'net_salary',
