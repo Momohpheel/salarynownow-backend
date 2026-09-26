@@ -308,6 +308,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/wallet', [EmployeeWalletController::class, 'index']);
         Route::get('/wallet/shared-meta', [EmployeeWalletController::class, 'sharedMeta']);
         Route::get('/me/owned-businesses', [EmployeeMeController::class, 'ownedBusinesses']);
+
+        Route::get('/me/businesses', [EmployeeMeController::class, 'index']);
+        Route::post('/me/businesses', [EmployeeMeController::class, 'store']);
+        Route::get('/me/businesses/{business}', [EmployeeMeController::class, 'show']);
+        Route::patch('/me/businesses/{business}', [EmployeeMeController::class, 'update']);
+        Route::delete('/me/businesses/{business}', [EmployeeMeController::class, 'destroy']);
         
         // Staff Management
         Route::get('/staff', [StaffController::class, 'index']);
