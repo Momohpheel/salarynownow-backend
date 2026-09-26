@@ -17,6 +17,19 @@ class MeController extends Controller
 {
     use ResolvesBusinessContext;
 
+    private function resolveBusinessDisplayName(User $biz): string
+    {
+        $name = trim((string) ($biz->name ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+        $companyName = trim((string) ($biz->company_name ?? ''));
+        if ($companyName !== '') {
+            return $companyName;
+        }
+        return 'Untitled business';
+    }
+
     public function ownedBusinesses(Request $request)
     {
         $actingUser = $request->user();
@@ -53,7 +66,7 @@ class MeController extends Controller
             $latest = $latestPayrolls->get($bizId);
             return [
                 'id' => $biz->id,
-                'company_name' => $biz->company_name ?? $biz->name,
+                'company_name' => $this->resolveBusinessDisplayName($biz),
                 'email' => $biz->email,
                 'staff_count' => (int) ($staffCounts->get($bizId)?->cnt ?? 0),
                 'latest_payroll_status' => $latest?->status ?? null,
@@ -205,7 +218,7 @@ class MeController extends Controller
 
             $response = [
                 'id' => $newBiz->id,
-                'company_name' => $newBiz->company_name ?? $newBiz->name,
+                'company_name' => $this->resolveBusinessDisplayName($newBiz),
                 'email' => $newBiz->email,
                 'phone_number' => $newBiz->phone_number,
                 'rc_number' => $newBiz->rc_number,
@@ -256,7 +269,7 @@ class MeController extends Controller
 
         $result = [
             'id' => $biz->id,
-            'company_name' => $biz->company_name ?? $biz->name,
+            'company_name' => $this->resolveBusinessDisplayName($biz),
             'email' => $biz->email,
             'phone_number' => $biz->phone_number,
             'rc_number' => $biz->rc_number,
@@ -370,7 +383,7 @@ class MeController extends Controller
 
         $result = [
             'id' => $biz->id,
-            'company_name' => $biz->company_name ?? $biz->name,
+            'company_name' => $this->resolveBusinessDisplayName($biz),
             'email' => $biz->email,
             'phone_number' => $biz->phone_number,
             'rc_number' => $biz->rc_number,
