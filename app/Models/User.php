@@ -54,6 +54,7 @@ use Laravel\Sanctum\HasApiTokens;
     'employer_id',
     'role_id',
     'account_number',
+    'type',
     'bvn',
     'otp',
     'otp_expires_at',
