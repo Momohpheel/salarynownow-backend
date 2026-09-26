@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
@@ -152,6 +153,8 @@ class StaffController extends Controller
                         'gross_salary' => (float) $payslip->gross_salary,
                         'net_salary' => (float) $payslip->net_salary,
                         'status' => $payslip->status,
+                        'failure_reason' => Schema::hasColumn('payslips', 'failure_reason') ? ($payslip->failure_reason ?? null) : null,
+                        'failure_code' => Schema::hasColumn('payslips', 'failure_code') ? ($payslip->failure_code ?? null) : null,
                         'description' => $payslip->payroll?->description,
                         'processed_at' => $payslip->payroll?->processed_at?->toISOString(),
                     ];

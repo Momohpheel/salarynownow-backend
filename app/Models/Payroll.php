@@ -23,6 +23,7 @@ class Payroll extends Model
         'processed_at',
         'period_start',
         'period_end',
+        'failure_summary',
     ];
 
     protected $casts = [
@@ -30,6 +31,7 @@ class Payroll extends Model
         'period_start' => 'date',
         'period_end' => 'date',
         'amount' => 'decimal:2',
+        'failure_summary' => 'json',
     ];
 
     protected function periodLabel(): Attribute

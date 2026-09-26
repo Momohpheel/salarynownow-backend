@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Modules\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Transaction;
 use App\Models\Payslip;
+use App\Models\Transaction;
 use App\Models\WalletLog;
 use App\Services\Sarepay\SarepayService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class TransactionController extends Controller
 {
@@ -25,13 +26,22 @@ class TransactionController extends Controller
         if ($response && isset($response->status)) {
             if (strtolower($response->status) === 'success' || strtolower($response->status) === 'completed') {
                 $transaction->update(['status' => Transaction::STATUS_SUCCESS]);
-                $transaction->payslip->update(['status' => Payslip::STATUS_DISBURSED]);
+                $payslipUpdate = ['status' => Payslip::STATUS_DISBURSED];
+                if (Schema::hasColumn('payslips', 'failure_reason')) $payslipUpdate['failure_reason'] = null;
+                if (Schema::hasColumn('payslips', 'failure_code')) $payslipUpdate['failure_code'] = null;
+                $transaction->payslip->update($payslipUpdate);
             } elseif ($response->status === 'failed') {
+                $failReason = is_object($response->data ?? null)
+                    ? ($response->data->failure_reason ?? $response->message ?? 'Transaction failed')
+                    : ($response->message ?? 'Transaction failed');
                 $transaction->update([
                     'status' => Transaction::STATUS_FAILED,
-                    'response_message' => $response->data->failure_reason ?? $response->message ?? 'Transaction failed'
+                    'response_message' => $failReason,
                 ]);
-                $transaction->payslip->update(['status' => Payslip::STATUS_FAILED]);
+                $payslipUpdate = ['status' => Payslip::STATUS_FAILED];
+                if (Schema::hasColumn('payslips', 'failure_reason')) $payslipUpdate['failure_reason'] = $failReason;
+                if (Schema::hasColumn('payslips', 'failure_code')) $payslipUpdate['failure_code'] = 'api_error';
+                $transaction->payslip->update($payslipUpdate);
 
                 $employer = $transaction->payslip->payroll->user;
                 $employerWallet = $employer->wallet;

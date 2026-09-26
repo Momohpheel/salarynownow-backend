@@ -29,6 +29,8 @@ class Payslip extends Model
         'bonus_type',
         'net_salary',
         'status',
+        'failure_reason',
+        'failure_code',
     ];
 
     protected $casts = [

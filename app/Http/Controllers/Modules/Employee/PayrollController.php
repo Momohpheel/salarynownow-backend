@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log as FacadesLog;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -528,6 +529,8 @@ class PayrollController extends Controller
                         'user_id' => $payslip->user_id,
                         'net_salary' => (float) $payslip->net_salary,
                         'status' => $payslip->status,
+                        'failure_reason' => Schema::hasColumn('payslips', 'failure_reason') ? ($payslip->failure_reason ?? null) : null,
+                        'failure_code' => Schema::hasColumn('payslips', 'failure_code') ? ($payslip->failure_code ?? null) : null,
                         'deductions' => $breakdown->map(function ($r) {
                             return [
                                 'id' => $r['id'],
@@ -555,6 +558,9 @@ class PayrollController extends Controller
             ->get();
 
         $data = $payrolls->map(function ($p) {
+            $hasFailureSummary = Schema::hasColumn('payrolls', 'failure_summary');
+            $summary = $hasFailureSummary ? ($p->failure_summary ?? null) : null;
+            $failedCount = is_array($summary) ? (int) ($summary['total'] ?? 0) : 0;
             return [
                 'id' => $p->id,
                 'reference' => $p->reference,
@@ -563,6 +569,8 @@ class PayrollController extends Controller
                 'staff_count' => $p->staff_count,
                 'total_amount' => '₦' . number_format($p->amount, 2),
                 'status' => $p->status,
+                'failed_count' => $failedCount,
+                'failure_summary' => $summary,
             ];
         });
 
@@ -611,6 +619,7 @@ class PayrollController extends Controller
                 'net_disbursement' => '₦' . number_format($payroll->amount, 2),
             ],
             'deduction_summary' => $deductionSummary,
+            'failure_summary' => Schema::hasColumn('payrolls', 'failure_summary') ? ($payroll->failure_summary ?? null) : null,
             'staff_payments' => $payroll->payslips->map(function ($p) use ($buildBreakdown, $buildBonusBreakdown) {
                 $deductionRows = $buildBreakdown($p);
                 $bonusRows = $buildBonusBreakdown($p);
@@ -637,6 +646,8 @@ class PayrollController extends Controller
                     'bonus_breakdown' => $bonusRows->all(),
                     'net_pay' => '₦' . number_format($p->net_salary, 2),
                     'status' => $p->status,
+                    'failure_reason' => Schema::hasColumn('payslips', 'failure_reason') ? ($p->failure_reason ?? null) : null,
+                    'failure_code' => Schema::hasColumn('payslips', 'failure_code') ? ($p->failure_code ?? null) : null,
                 ];
             }),
         ];

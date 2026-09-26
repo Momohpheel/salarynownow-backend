@@ -15,7 +15,9 @@ use App\Models\Notification;
 use App\Models\Transaction;
 use App\Services\Sarepay\SarepayService;
 use App\Traits\ResolvesFeeConfig;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 #[Signature('app:process-payroll')]
@@ -68,6 +70,20 @@ class ProcessPayroll extends Command
             $employerWallet = $employer->wallet;
             $availableBalance = (float) ($employerWallet?->balance ?? 0);
             $hasFailures = false;
+            $hasPayslipFailureReasonCol = Schema::hasColumn('payslips', 'failure_reason');
+            $hasPayslipFailureCodeCol = Schema::hasColumn('payslips', 'failure_code');
+            $failureSummary = [
+                'total' => 0,
+                'by_code' => [
+                    'wallet_missing' => 0,
+                    'insufficient_balance' => 0,
+                    'bank_code_missing' => 0,
+                    'api_error' => 0,
+                    'staff_missing' => 0,
+                    'unknown' => 0,
+                ],
+                'failed_payslips' => [],
+            ];
 
             $payslips = Payslip::where('payroll_id', $payroll->id)
                ->where('status', Payslip::STATUS_PENDING)
@@ -78,12 +94,26 @@ class ProcessPayroll extends Command
                 $reference = 'SAL-' . Str::upper(Str::random(10));
                 $netSalary = (float) $payslip->net_salary;
 
+                if (! $staff) {
+                    $hasFailures = true;
+                    $this->error("Payslip #{$payslip->id} has no linked staff user — skipping disbursement.");
+                    $this->recordPayslipFailure(
+                        $payslip,
+                        $reference,
+                        $netSalary,
+                        'No staff record attached to this payslip.',
+                        'staff_missing',
+                        $failureSummary
+                    );
+                    continue;
+                }
+
                 $this->info("Initiating transfer of ₦" . number_format($netSalary, 2) . " to {$staff->name} ({$staff->account_number})");
 
                 try {
                     if (! $employerWallet) {
                         $this->error("Employer wallet not found for {$payroll->user->name}");
-                        throw new \Exception("Employer wallet not found.");
+                        throw new \Exception("Employer wallet not found.", 1001);
                     }
 
                     $feeResolution = $this->resolveAndComputeFee(
@@ -106,37 +136,64 @@ class ProcessPayroll extends Command
                     ));
 
                     if ($availableBalance < $totalDeduction) {
+                        $need = number_format($totalDeduction, 2);
+                        $have = number_format($availableBalance, 2);
+                        $shortfall = number_format($totalDeduction - $availableBalance, 2);
                         $this->error("Insufficient employer wallet balance for {$payroll->user->name} to cover salary and charges");
-                        throw new \Exception("Insufficient employer wallet balance for this transaction and charges.");
+                        throw new \Exception(
+                            "Insufficient wallet balance. Need ₦{$need} (salary + fees), have ₦{$have} — shortfall ₦{$shortfall}.",
+                            1002
+                        );
                     }
 
                     $bankCode = $this->resolveBankCode($staff->bank_name, $bankCodeLookup);
 
                     if (! $bankCode) {
                         $this->error("Bank code not found for {$staff->bank_name}");
-                        throw new \Exception("Bank code not found for {$staff->bank_name}.");
+                        throw new \Exception(
+                            "Bank code not found for bank: {$staff->bank_name}. Please update the bank name to a recognised one (e.g. \"Access Bank\", \"GTBank\", \"UBA\") and retry.",
+                            1003
+                        );
                     }
 
-                    $response = $this->sarepayService->transfer(
-                        $reference,
-                        $staff->account_number,
-                        $bankCode,
-                        $netSalary,
-                        "Salary for {$employerName} - {$payroll->description}"
-                    );
+                    try {
+                        $response = $this->sarepayService->transfer(
+                            $reference,
+                            $staff->account_number,
+                            $bankCode,
+                            $netSalary,
+                            "Salary for {$employerName} - {$payroll->description}"
+                        );
+                    } catch (\Throwable $apiE) {
+                        $msg = trim($apiE->getMessage()) !== ''
+                            ? $apiE->getMessage()
+                            : 'Payment provider call failed without a message.';
+                        throw new \Exception($msg, 1004);
+                    }
 
                     if (is_array($response)) {
                         $rawStatus = $response['data']['status']
                             ?? $response['status']
                             ?? $response['data_status']
                             ?? null;
+                        $rawMessage = $response['data']['message']
+                            ?? $response['message']
+                            ?? $response['data']['failure_reason']
+                            ?? $response['failure_reason']
+                            ?? null;
                     } elseif (is_object($response)) {
                         $rawStatus = data_get($response, 'data.status')
                             ?? data_get($response, 'status')
                             ?? data_get($response, 'data_status')
                             ?? null;
+                        $rawMessage = data_get($response, 'data.message')
+                            ?? data_get($response, 'message')
+                            ?? data_get($response, 'data.failure_reason')
+                            ?? data_get($response, 'failure_reason')
+                            ?? null;
                     } else {
                         $rawStatus = null;
+                        $rawMessage = null;
                     }
                     $transferStatus = is_string($rawStatus) && $rawStatus !== ''
                         ? strtolower($rawStatus)
@@ -149,8 +206,16 @@ class ProcessPayroll extends Command
                         'reference' => $reference,
                         'amount' => $netSalary,
                         'status' => $transferStatus,
+                        'response_message' => is_string($rawMessage) && $rawMessage !== '' ? $rawMessage : null,
                         'metadata' => (array) $response,
                     ]);
+
+                    if ($transferStatus === Transaction::STATUS_FAILED) {
+                        $failReason = is_string($rawMessage) && $rawMessage !== ''
+                            ? $rawMessage
+                            : 'Payment provider returned a failed status with no additional reason.';
+                        throw new \Exception($failReason, 1004);
+                    }
 
                     $balanceBefore = (float) $employerWallet->balance;
                     $employerWallet->decrement('balance', $totalDeduction);
@@ -176,7 +241,11 @@ class ProcessPayroll extends Command
                     ]);
 
                     $availableBalance = (float) $employerWallet->balance;
-                    $payslip->update(['status' => Payslip::STATUS_DISBURSED]);
+
+                    $resetPayload = ['status' => Payslip::STATUS_DISBURSED];
+                    if ($hasPayslipFailureReasonCol) $resetPayload['failure_reason'] = null;
+                    if ($hasPayslipFailureCodeCol) $resetPayload['failure_code'] = null;
+                    $payslip->update($resetPayload);
                     $payslip->load('user');
 
                     if ($payslip->user?->email) {
@@ -207,33 +276,67 @@ class ProcessPayroll extends Command
                 } catch (\Exception $e) {
                     $hasFailures = true;
                     $this->error("Failed to initiate transfer for {$staff->name}: " . $e->getMessage());
-                    
-                    Transaction::create([
-                        'user_id' => $staff->id,
-                        'payroll_id' => $payroll->id,
-                        'payslip_id' => $payslip->id,
-                        'reference' => $reference,
-                        'amount' => $netSalary,
-                        'status' => Transaction::STATUS_FAILED,
-                        'response_message' => $e->getMessage(),
-                    ]);
+                    $codeMap = [
+                        1001 => 'wallet_missing',
+                        1002 => 'insufficient_balance',
+                        1003 => 'bank_code_missing',
+                        1004 => 'api_error',
+                    ];
+                    $code = $codeMap[$e->getCode()] ?? 'unknown';
+                    $reason = $e->getMessage() !== '' ? $e->getMessage() : 'Disbursement failed without a reason.';
+                    $this->recordPayslipFailure(
+                        $payslip,
+                        $reference,
+                        $netSalary,
+                        $reason,
+                        $code,
+                        $failureSummary
+                    );
                 }
             }
 
-            $payroll->update([
+            $payrollUpdate = [
                 'status' => $hasFailures ? Payroll::STATUS_FAILED : Payroll::STATUS_COMPLETED,
-            ]);
+            ];
+            if (Schema::hasColumn('payrolls', 'failure_summary')) {
+                $payrollUpdate['failure_summary'] = $hasFailures ? $failureSummary : null;
+            }
+            $payroll->update($payrollUpdate);
 
             try {
                 $employer = $payroll->user;
                 if ($employer) {
                     $statusLabel = $hasFailures ? 'has failures' : 'complete';
+                    $totalStaff = (int) ($payroll->staff_count ?? $payslips->count());
+                    $disbursedCount = max(0, $totalStaff - (int) ($failureSummary['total'] ?? 0));
+                    $failedCount = (int) ($failureSummary['total'] ?? 0);
+
+                    if ($hasFailures) {
+                        $codeLabelMap = [
+                            'wallet_missing' => 'Missing employer wallet',
+                            'insufficient_balance' => 'Insufficient wallet balance',
+                            'bank_code_missing' => 'Unrecognised bank name(s)',
+                            'api_error' => 'Payment provider error',
+                            'staff_missing' => 'Missing staff record',
+                            'unknown' => 'Unknown error',
+                        ];
+                        $summaryLines = [];
+                        foreach (($failureSummary['by_code'] ?? []) as $code => $count) {
+                            if ((int) $count > 0) {
+                                $summaryLines[] = ($codeLabelMap[$code] ?? ucfirst(str_replace('_', ' ', (string) $code))) . " — {$count}";
+                            }
+                        }
+                        $body = "Payroll run for {$payroll->period_label} has {$failedCount} failed payment(s) out of {$totalStaff}. {$disbursedCount} paid successfully.\nFailure reasons: " . implode('; ', $summaryLines ?: ['See the payroll detail page.']) . ". Open the payroll detail page to see per-staff reason.";
+                    } else {
+                        $body = "Payroll run for {$payroll->period_label} ({$payroll->staff_count} staff, ₦" . number_format($payroll->amount, 2) . ") {$statusLabel}.";
+                    }
+
                     Notification::notify($employer, [
                         'category' => 'payroll',
                         'type' => 'payroll_completed',
                         'title' => "Payroll {$statusLabel}",
-                        'body' => "Payroll run for {$payroll->period_label} ({$payroll->staff_count} staff, ₦" . number_format($payroll->amount, 2) . ") {$statusLabel}.",
-                        'icon' => 'check',
+                        'body' => $body,
+                        'icon' => $hasFailures ? 'alert-triangle' : 'check',
                         'deep_link' => "/payroll/{$payroll->id}",
                         'metadata' => [
                             'payroll_id' => $payroll->id,
@@ -241,19 +344,30 @@ class ProcessPayroll extends Command
                             'staff_count' => $payroll->staff_count,
                             'amount' => $payroll->amount,
                             'has_failures' => $hasFailures,
+                            'failed_count' => $failedCount,
+                            'disbursed_count' => $disbursedCount,
+                            'failure_summary' => $hasFailures ? $failureSummary : null,
                         ],
                     ]);
-                    if (!$hasFailures && $employer->parent_id) {
+                    if ($employer->parent_id) {
+                        $adminBody = $hasFailures
+                            ? "Payroll run for {$payroll->period_label} for " . ($employer->company_name ?? $employer->name) . " has {$failedCount} failed payment(s) out of {$totalStaff}. {$disbursedCount} paid successfully."
+                            : "Payroll run for {$payroll->period_label} for " . ($employer->company_name ?? $employer->name) . " ({$payroll->staff_count} staff, ₦" . number_format($payroll->amount, 2) . ") {$statusLabel}.";
                         Notification::notify($employer->parent_id, [
                             'category' => 'payroll',
                             'type' => 'payroll_completed',
-                            'title' => "Payroll {$statusLabel} for " . ($employer->company_name ?? $employer->name),
-                            'body' => "Payroll run for {$payroll->period_label} ({$payroll->staff_count} staff, ₦" . number_format($payroll->amount, 2) . ") {$statusLabel}.",
-                            'icon' => 'check',
+                            'title' => $hasFailures
+                                ? "Payroll has failures for " . ($employer->company_name ?? $employer->name)
+                                : "Payroll {$statusLabel} for " . ($employer->company_name ?? $employer->name),
+                            'body' => $adminBody,
+                            'icon' => $hasFailures ? 'alert-triangle' : 'check',
                             'deep_link' => "/admin/payrolls",
                             'metadata' => [
                                 'payroll_id' => $payroll->id,
                                 'employer_id' => $employer->id,
+                                'has_failures' => $hasFailures,
+                                'failed_count' => $failedCount,
+                                'disbursed_count' => $disbursedCount,
                             ],
                         ]);
                     }
@@ -309,5 +423,54 @@ class ProcessPayroll extends Command
     private function normalizeBankName(string $bankName): string
     {
         return strtolower(trim(preg_replace('/\s+/', ' ', $bankName)));
+    }
+
+    private function recordPayslipFailure(
+        Payslip $payslip,
+        string $reference,
+        float $netSalary,
+        string $reason,
+        string $code,
+        array &$failureSummary
+    ): void {
+        static $hasReasonCol = null, $hasCodeCol = null;
+        if ($hasReasonCol === null) {
+            $hasReasonCol = Schema::hasColumn('payslips', 'failure_reason');
+            $hasCodeCol = Schema::hasColumn('payslips', 'failure_code');
+        }
+
+        $payslipUpdate = ['status' => Payslip::STATUS_FAILED];
+        if ($hasReasonCol) $payslipUpdate['failure_reason'] = $reason;
+        if ($hasCodeCol) $payslipUpdate['failure_code'] = $code;
+        $payslip->update($payslipUpdate);
+
+        Transaction::create([
+            'user_id' => $payslip->user_id,
+            'payroll_id' => $payslip->payroll_id,
+            'payslip_id' => $payslip->id,
+            'reference' => $reference,
+            'amount' => $netSalary,
+            'status' => Transaction::STATUS_FAILED,
+            'response_message' => $reason,
+            'metadata' => [
+                'failure_code' => $code,
+            ],
+        ]);
+
+        $failureSummary['total'] = ($failureSummary['total'] ?? 0) + 1;
+        if (!isset($failureSummary['by_code'][$code])) {
+            $failureSummary['by_code'][$code] = 0;
+        }
+        $failureSummary['by_code'][$code] += 1;
+
+        $failureSummary['failed_payslips'][] = [
+            'payslip_id' => $payslip->id,
+            'reference' => $reference,
+            'user_id' => $payslip->user_id,
+            'staff_name' => $payslip->user?->name ?? null,
+            'amount' => $netSalary,
+            'code' => $code,
+            'reason' => $reason,
+        ];
     }
 }
