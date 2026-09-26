@@ -20,6 +20,10 @@ class TeamMemberAdded extends Mailable
 
     public function __construct(User $teamMember, User $employer, string $password, string $loginUrl)
     {
+        if (!$teamMember->relationLoaded('role')) {
+            $teamMember->loadMissing('role');
+        }
+
         $this->teamMember = $teamMember;
         $this->employer = $employer;
         $this->password = $password;

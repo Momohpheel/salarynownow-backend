@@ -52,14 +52,14 @@
 
         <h2>Welcome to Sugar Payroll!</h2>
 
-        <p>Hi {{ $staff->first_name ?? $staff->name }},</p>
+        <p>Hi {{ $staff?->first_name ?? ($staff?->name ?? 'there') }},</p>
 
-        <p>{{ $employer->company_name ?? $employer->name }} has added you as a staff member on Sugar Payroll.</p>
+        <p>{{ $employer?->company_name ?? ($employer?->name ?? 'Your company') }} has added you as a staff member on Sugar Payroll.</p>
 
         <p>Here are your login details:</p>
 
         <ul>
-            <li><strong>Email:</strong> {{ $staff->email }}</li>
+            <li><strong>Email:</strong> {{ $staff?->email ?? '' }}</li>
             <li><strong>Password:</strong> {{ $password }}</li>
         </ul>
 

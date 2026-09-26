@@ -43,16 +43,16 @@
 
         <h2>Welcome to Sugar Payroll!</h2>
 
-        <p>Hi {{ $teamMember->name }},</p>
+        <p>Hi {{ $teamMember?->name ?? 'there' }},</p>
 
-        <p>{{ $employer->company_name ?? $employer->name }} has added you as a team member on Sugar Payroll!</p>
+        <p>{{ $employer?->company_name ?? ($employer?->name ?? 'Your company') }} has added you as a team member on Sugar Payroll!</p>
 
         <p>Here are your login details:</p>
 
         <ul>
-            <li><strong>Email:</strong> {{ $teamMember->email }}</li>
+            <li><strong>Email:</strong> {{ $teamMember?->email ?? '' }}</li>
             <li><strong>Password:</strong> {{ $password }}</li>
-            <li><strong>Role:</strong> {{ $teamMember->role->name }}</li>
+            <li><strong>Role:</strong> {{ $teamMember?->role?->name ?? ($teamMember?->role_id ? 'Staff' : 'Staff') }}</li>
         </ul>
 
         <p>Please log in and change your password immediately.</p>
