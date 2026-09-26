@@ -19,13 +19,15 @@ class MeController extends Controller
 
     private function resolveBusinessDisplayName(User $biz): string
     {
-        $name = trim((string) ($biz->name ?? ''));
-        if ($name !== '') {
-            return $name;
-        }
+       
         $companyName = trim((string) ($biz->company_name ?? ''));
         if ($companyName !== '') {
             return $companyName;
+        }
+
+         $name = trim((string) ($biz->name ?? ''));
+        if ($name !== '') {
+            return $name;
         }
         return 'Untitled business';
     }
