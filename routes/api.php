@@ -319,6 +319,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Staff Management
         Route::get('/staff', [StaffController::class, 'index']);
         Route::post('/staff', [StaffController::class, 'store']);
+        Route::post('/staff/bank/verify', [StaffController::class, 'verifyBank']);
         Route::post('/staff/bulk-upload', [StaffController::class, 'bulkUpload']);
         Route::post('/staff/{staff}', [StaffController::class, 'update']);
         Route::post('/staff/{staff}/toggle-status', [StaffController::class, 'toggleStatus']);

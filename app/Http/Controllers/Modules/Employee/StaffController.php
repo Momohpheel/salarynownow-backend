@@ -530,4 +530,44 @@ class StaffController extends Controller
     {
         return strtolower(trim(preg_replace('/\s+/', ' ', $bankName)));
     }
+
+    public function verifyBank(Request $request)
+    {
+        $request->validate([
+            'account_number' => 'required|string',
+            'bank_code' => 'required|string',
+        ]);
+
+        $scope = $this->resolveBusinessScope($request, $request->user());
+
+        $businessIds = array_map('intval', $scope->business_ids);
+
+        if ($request->has('staff_id') && $request->staff_id !== null && $request->staff_id !== '') {
+            $staffId = (int) $request->staff_id;
+            $staffBelongs = User::where('id', $staffId)
+                ->where('type', User::TYPE_STAFF)
+                ->whereIn('parent_id', $businessIds)
+                ->exists();
+            if (!$staffBelongs) {
+                return $this->sendError('Staff member not found in your authorized businesses.', null, 404);
+            }
+            $staff = User::find($staffId);
+            $existing = (string) ($staff?->account_number ?? '');
+            $incoming = trim((string) $request->account_number);
+            if ($existing !== '' && $existing !== $incoming) {
+                return $this->sendError(
+                    'For security, this staff account number has already been set and cannot be verified to a different number. Contact admin to change it.',
+                    null,
+                    403,
+                );
+            }
+        }
+
+        $result = $this->sarepayService->validateAccount(
+            (string) $request->account_number,
+            (string) $request->bank_code,
+        );
+
+        return $this->sendResponse($result->data, 'Bank account verified');
+    }
 }
