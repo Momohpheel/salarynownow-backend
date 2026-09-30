@@ -215,10 +215,10 @@ class SarepayService{
             "bvn" => $isModel ? $data->bvn : ($data['bvn'] ?? null),
             "phone_number" => $isModel ? $data->phone_number : ($data['phone_number'] ?? null),
             "business_type" => "Main",
-            "type" => "Corporate",
-            //'type' => "Personal",
+            //"type" => "Corporate",
+            "type" => "Personal",
            "rc_number" => $this->sanitizeRcNumber($isModel ? ($data->rc_number ?? null) : ($data['rc_number'] ?? null)),
-            "corporate_account_type" => "COMPANY",
+           // "corporate_account_type" => "COMPANY",
             "currency" => "NGN",
             "channel" => "Globus",
         ];
