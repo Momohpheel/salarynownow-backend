@@ -150,9 +150,9 @@ class EmployeeController extends Controller
             return $this->sendError('Employee not found or unauthorized', null, 404);
         }
 
-        if ($employee->is_approved) {
-            return $this->sendError('Employee is already approved.', null, 400);
-        }
+        // if ($employee->is_approved) {
+        //     return $this->sendError('Employee is already approved.', null, 400);
+        // }
 
         // Call Sarepay to create virtual account
         $sarepayResponse = $this->sarepayService->createAccount($employee);
