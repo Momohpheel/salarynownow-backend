@@ -201,9 +201,9 @@ class SarepayService{
    
         $accountDto = [
             "customer_reference" => $customerReference,
-            "first_name" => $isModel ? ($data->first_name ?? $splitFirstName ) : ($data['first_name'] ?? $splitFirstName),
-            "last_name" => $isModel ? ($data->last_name ?? $splitLastName) : ($data['last_name'] ?? $splitLastName),
-            "other_name" => $isModel ? ($data->other_name ?? $splitOtherName) : ($data['other_name'] ?? $splitOtherName),
+            "first_name" => $isModel ? ($data->first_name ?? $splitFirstName ?? "Unknown") : ($data['first_name'] ?? $splitFirstName ?? "Unknown"),
+            "last_name" => $isModel ? ($data->last_name ?? $splitLastName ?? "User") : ($data['last_name'] ?? $splitLastName ?? "User"),
+            "other_name" => $isModel ? ($data->other_name ?? $splitOtherName ?? "N/A") : ($data['other_name'] ?? $splitOtherName ?? "N/A"),
             "dob" => $isModel ? ($data->dob ?? "2000-01-01") : ($data['dob'] ?? "2000-01-01"),
             // "city" => $isModel ? "Lagos" : ($data['city'] ?? "Lagos"),
             // "state" => $isModel ? "Lagos" : ($data['state'] ?? "Lagos"),
