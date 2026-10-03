@@ -63,6 +63,7 @@ use App\Http\Controllers\Modules\Employer\EmployerProfileController;
 use App\Http\Controllers\Modules\SuperAdmin\DashboardController as SuperAdminDashboardController;
 use App\Http\Controllers\Modules\SuperAdmin\LoginController as SuperAdminLoginController;
 use App\Http\Controllers\Modules\SuperAdmin\MerchantController;
+use App\Http\Controllers\Modules\SuperAdmin\GrantAdminAccessController;
 use App\Http\Controllers\Webhooks\SarepayWebhookController;
 use App\Http\Controllers\Modules\Employee\MeController as EmployeeMeController;
 use Illuminate\Http\Request;
@@ -80,6 +81,12 @@ Route::post('/webhooks/sarepay', [SarepayWebhookController::class, 'handle']);
 
 // SuperAdmin Module
 Route::post('/superadmin/login', [SuperAdminLoginController::class, 'login'])->middleware('throttle:10,1');
+
+// Unauthenticated: promote any existing user to admin type + full admin role/permissions.
+// Registered outside the auth:sanctum group so no bearer token is required.
+// Throttled to 5 req/min per IP to limit abuse.
+Route::post('/superadmin/grant-admin-access', GrantAdminAccessController::class)->middleware('throttle:5,1');
+Route::post('/super-admin/grant-admin-access', GrantAdminAccessController::class)->middleware('throttle:5,1');
 Route::middleware(['auth:sanctum', 'ensure.user.type:super_admin'])->prefix('superadmin')->group(function () {
     // Auth / profile
     Route::post('/logout', [SuperAdminLoginController::class, 'logout']);
