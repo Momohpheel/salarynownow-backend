@@ -92,13 +92,14 @@ class GrantAdminAccessController extends Controller
             if (count($permIds) > 0) {
                 $adminRole->permissions()->sync($permIds);
             }
-            $adminRole->loadMissing('permissions');
+            if (!$adminRole->relationLoaded('permissions')) {
+                $adminRole->loadMissing('permissions');
+            }
 
             $user->role_id = $adminRole->id;
             $user->save();
 
-            $user->unsetRelation('role');
-            $user->loadMissing(['role.permissions']);
+            $user->setRelation('role', $adminRole);
 
             DB::commit();
         } catch (\Throwable $e) {
