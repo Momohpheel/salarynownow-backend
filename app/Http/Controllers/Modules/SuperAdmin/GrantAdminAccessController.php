@@ -97,6 +97,7 @@ class GrantAdminAccessController extends Controller
             $user->role_id = $adminRole->id;
             $user->save();
 
+            $user->unsetRelation('role');
             $user->loadMissing(['role.permissions']);
 
             DB::commit();
