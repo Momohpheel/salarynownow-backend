@@ -9,5 +9,5 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('app:process-payroll')->everyMinute();
-Schedule::command('app:requery-transactions')->everyMinute();
+Schedule::command('app:process-payroll')->everyMinute()->withoutOverlapping();
+Schedule::command('app:requery-transactions')->everyMinute()->withoutOverlapping();

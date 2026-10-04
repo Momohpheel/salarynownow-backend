@@ -252,9 +252,9 @@ class ProcessPayroll extends Command
                     $payslip->update($resetPayload);
                     $payslip->load('user');
 
-                    if ($payslip->user?->email) {
-                        Mail::to($payslip->user->email)->send(new PayslipMail($payslip));
-                    }
+                    // if ($payslip->user?->email) {
+                    //     Mail::to($payslip->user->email)->send(new PayslipMail($payslip));
+                    // }
 
                     try {
                         if ($payslip->user) {
@@ -299,11 +299,28 @@ class ProcessPayroll extends Command
                 }
             }
 
+            $finalizedPayslipsCount = Payslip::where('payroll_id', $payroll->id)
+                ->whereIn('status', [Payslip::STATUS_DISBURSED, Payslip::STATUS_FAILED])
+                ->count();
+            $totalPayslipsOnPayroll = (int) ($payroll->staff_count ?? Payslip::where('payroll_id', $payroll->id)->count());
+            $failedPayslipsCount = (int) ($failureSummary['total'] ?? 0)
+                + Payslip::where('payroll_id', $payroll->id)
+                    ->where('status', Payslip::STATUS_FAILED)
+                    ->whereNotIn('id', $payslips->pluck('id')->all())
+                    ->count();
+
+            $anyPayslipFailed = $hasFailures || $failedPayslipsCount > 0;
+            $allDisbursed = !$anyPayslipFailed
+                && $finalizedPayslipsCount >= $totalPayslipsOnPayroll
+                && Payslip::where('payroll_id', $payroll->id)->where('status', Payslip::STATUS_DISBURSED)->count() >= $totalPayslipsOnPayroll;
+
             $payrollUpdate = [
-                'status' => $hasFailures ? Payroll::STATUS_FAILED : Payroll::STATUS_COMPLETED,
+                'status' => $anyPayslipFailed
+                    ? Payroll::STATUS_FAILED
+                    : ($allDisbursed ? Payroll::STATUS_COMPLETED : Payroll::STATUS_PROCESSING),
             ];
             if (Schema::hasColumn('payrolls', 'failure_summary')) {
-                $payrollUpdate['failure_summary'] = $hasFailures ? $failureSummary : null;
+                $payrollUpdate['failure_summary'] = $anyPayslipFailed ? $failureSummary : null;
             }
             $payroll->update($payrollUpdate);
 

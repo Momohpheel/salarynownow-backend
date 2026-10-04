@@ -11,6 +11,7 @@ class Payroll extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
+    const STATUS_NOT_COMPLETED = 'not_completed';
     const STATUS_FAILED = 'failed';
 
     protected $fillable = [
