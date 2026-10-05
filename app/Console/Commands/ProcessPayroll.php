@@ -219,16 +219,22 @@ class ProcessPayroll extends Command
                 }
 
                
-                    Transaction::create([
-                        'user_id' => $staff->id,
-                        'payroll_id' => $payroll->id,
-                        'payslip_id' => $payslip->id,
-                        'reference' => $reference,
-                        'amount' => $netSalary,
-                        'status' => $transferStatus,
-                        'response_message' => is_string($rawMessage) && $rawMessage !== '' ? $rawMessage : null,
-                        'metadata' => (array) $response,
-                    ]);
+                $txAttributes = [
+                    'user_id' => $staff->id,
+                    'payroll_id' => $payroll->id,
+                    'payslip_id' => $payslip->id,
+                    'amount' => $netSalary,
+                    'status' => $transferStatus,
+                    'response_message' => is_string($rawMessage) && $rawMessage !== '' ? $rawMessage : null,
+                    'metadata' => (array) $response,
+                ];
+                $existingTx = Transaction::where('reference', $reference)->first();
+                if ($existingTx) {
+                    $existingTx->fill($txAttributes)->save();
+                    $transaction = $existingTx;
+                } else {
+                    $transaction = Transaction::create(['reference' => $reference] + $txAttributes);
+                }
 
                     if ($transferStatus === Transaction::STATUS_FAILED) {
                         $failReason = is_string($rawMessage) && $rawMessage !== ''
@@ -483,18 +489,23 @@ class ProcessPayroll extends Command
         if ($hasCodeCol) $payslipUpdate['failure_code'] = $code;
         $payslip->update($payslipUpdate);
 
-        Transaction::create([
+        $txAttributes = [
             'user_id' => $payslip->user_id,
             'payroll_id' => $payslip->payroll_id,
             'payslip_id' => $payslip->id,
-            'reference' => $reference,
             'amount' => $netSalary,
             'status' => Transaction::STATUS_FAILED,
             'response_message' => $reason,
             'metadata' => [
                 'failure_code' => $code,
             ],
-        ]);
+        ];
+        $existingTx = Transaction::where('reference', $reference)->first();
+        if ($existingTx) {
+            $existingTx->fill($txAttributes)->save();
+        } else {
+            Transaction::create(['reference' => $reference] + $txAttributes);
+        }
 
         $failureSummary['total'] = ($failureSummary['total'] ?? 0) + 1;
         if (!isset($failureSummary['by_code'][$code])) {

@@ -10,6 +10,7 @@ use App\Models\PayrollUploadFlag;
 use App\Models\Payslip;
 use App\Models\PayslipDeduction;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Traits\ResolvesBusinessContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,52 @@ use Maatwebsite\Excel\Facades\Excel;
 class PayrollController extends Controller
 {
     use ResolvesBusinessContext;
+
+    private function findExistingWalletOrFail(User $startingUser, int $singleBusinessId): Wallet
+    {
+        $visited = [];
+        $current = $startingUser->resolveSharedWalletOwner() ?? $startingUser;
+
+        $maxDepth = 8;
+        $depth = 0;
+
+        while ($current && $depth++ < $maxDepth) {
+            $cid = (int) $current->id;
+            if (isset($visited[$cid])) break;
+            $visited[$cid] = true;
+
+            if ($current->wallet instanceof Wallet) {
+                return $current->wallet;
+            }
+
+            $existingWallet = Wallet::query()
+                ->where('user_id', $cid)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if ($existingWallet) {
+                $current->setRelation('wallet', $existingWallet);
+                return $existingWallet;
+            }
+
+            if ((int) $current->parent_id > 0 && (int) $current->parent_id !== $cid) {
+                $current = User::with('wallet')->find((int) $current->parent_id);
+                continue;
+            }
+
+            break;
+        }
+
+        $ids = array_keys($visited);
+        throw new \RuntimeException(sprintf(
+            'No wallet record found for payroll. starting_user_id=%s (%s) business_id=%s visited_ids=[%s]',
+            $startingUser->id,
+            $startingUser->type ?? '?',
+            $singleBusinessId,
+            implode(', ', $ids)
+        ));
+    }
+
     private function buildLegacyAwareDeductionBreakdown($payslip)
     {
         $rows = collect();
@@ -327,16 +374,31 @@ class PayrollController extends Controller
             'total_amount' => 'required|numeric|min:0',
         ]);
 
-        $employerId = $request->user()->getEmployerId();
+        $user = $request->user();
+        if (!$user) {
+            return $this->sendError('Unauthenticated.', [], 401);
+        }
+        $employerId = $user->getEmployerId();
         $employer = User::with('wallet')->find($employerId);
-        $wallet = $employer->wallet;
+        if (!$employer) {
+            return $this->sendError('Business not found.', null, 404);
+        }
 
-        $isSufficient = $wallet && $wallet->balance >= $request->total_amount;
+        try {
+            $wallet = $this->findExistingWalletOrFail($employer, (int) $employerId);
+        } catch (\RuntimeException $e) {
+            return $this->sendError($e->getMessage(), [
+                'business_id' => $employerId,
+            ], 500);
+        }
+
+        $isSufficient = (float) $wallet->balance >= (float) $request->total_amount;
 
         $data = [
             'is_sufficient' => $isSufficient,
-            'current_balance' => '₦' . number_format($wallet?->balance ?? 0, 2),
-            'required_amount' => '₦' . number_format($request->total_amount, 2),
+            'current_balance' => '₦' . number_format((float) $wallet->balance, 2),
+            'required_amount' => '₦' . number_format((float) $request->total_amount, 2),
+            'wallet_user_id' => $wallet->user_id,
         ];
 
         return $this->sendResponse($data, 'Balance check completed');
@@ -371,10 +433,10 @@ class PayrollController extends Controller
         if (!$employer) {
             return $this->sendError('Business not found.', null, 404);
         }
-        $walletOwner = $employer->resolveSharedWalletOwner();
-        $wallet = $walletOwner->wallet;
 
-        return DB::transaction(function () use ($request, $employer, $wallet, $singleBusinessId) {
+        return DB::transaction(function () use ($request, $employer, $singleBusinessId) {
+            $wallet = $this->findExistingWalletOrFail($employer, $singleBusinessId);
+
             $totalNetToPay = 0;
             $staffCount = 0;
             $totalGross = 0;
@@ -504,10 +566,30 @@ class PayrollController extends Controller
             FacadesLog::info('Total net to pay: ' . $totalNetToPay);
             FacadesLog::info('Total gross salary: ' . $totalGross);
             FacadesLog::info('Total staff count: ' . $staffCount);
-            FacadesLog::info('Wallet balance: ' . $wallet->balance);
 
-            if ($wallet->balance < $totalNetToPay) {
-                throw new \Exception("Insufficient wallet balance to complete payroll.");
+            $expectedWalletId = $wallet->id ?? null;
+            try {
+                $wallet = Wallet::query()->where('id', $expectedWalletId)->lockForUpdate()->first();
+            } catch (\Throwable) {
+                $wallet = Wallet::query()->where('id', $expectedWalletId)->first();
+            }
+            if (!$wallet) {
+                throw new \RuntimeException(sprintf(
+                    'Shared wallet not found inside transaction. business_user_id=%s expected_wallet_id=%s',
+                    $singleBusinessId,
+                    $expectedWalletId ?? 'null'
+                ));
+            }
+
+            FacadesLog::info('Wallet balance: ' . ($wallet->balance ?? 0));
+
+            if ((float) ($wallet->balance ?? 0) < (float) $totalNetToPay) {
+                throw new \Exception(sprintf(
+                    'Insufficient wallet balance to complete payroll. Required: ₦%s | Available: ₦%s | Business ID: %s',
+                    number_format((float) $totalNetToPay, 2),
+                    number_format((float) ($wallet->balance ?? 0), 2),
+                    $singleBusinessId
+                ));
             }
 
             $payroll->update([
