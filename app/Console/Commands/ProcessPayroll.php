@@ -166,6 +166,7 @@ class ProcessPayroll extends Command
                             $netSalary,
                             "Salary for {$employerName} - {$payroll->description}"
                         );
+                         \Illuminate\Support\Facades\Log::info('Sarepay Transfer response: ' . json_encode($response));
                     } catch (\Throwable $apiE) {
                         $msg = trim($apiE->getMessage()) !== ''
                             ? $apiE->getMessage()
