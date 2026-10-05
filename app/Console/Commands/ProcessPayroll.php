@@ -184,6 +184,9 @@ class ProcessPayroll extends Command
                             ?? $response['data']['failure_reason']
                             ?? $response['failure_reason']
                             ?? null;
+                        $rawSuccess = $response['success']
+                        ?? $response['data']['success']
+                        ?? null;
                     } elseif (is_object($response)) {
                         $rawStatus = data_get($response, 'data.status')
                             ?? data_get($response, 'status')
@@ -194,14 +197,28 @@ class ProcessPayroll extends Command
                             ?? data_get($response, 'data.failure_reason')
                             ?? data_get($response, 'failure_reason')
                             ?? null;
+                        $rawSuccess = data_get($response, 'success')
+                        ?? data_get($response, 'data.success')
+                        ?? null;
                     } else {
                         $rawStatus = null;
                         $rawMessage = null;
+                          $rawSuccess = null;
                     }
-                    $transferStatus = is_string($rawStatus) && $rawStatus !== ''
-                        ? strtolower($rawStatus)
-                        : Transaction::STATUS_PENDING;
 
+                $transferStatus = is_string($rawStatus) && $rawStatus !== ''
+                        ? strtolower($rawStatus)
+                        : null;
+
+                if ($transferStatus === null) {
+                    if ($rawSuccess === true || (is_string($rawSuccess) && in_array(strtolower(trim($rawSuccess)), ['1','true','yes','ok','success'], true))) {
+                        $transferStatus = 'successful';
+                    } elseif ($rawSuccess === false || (is_string($rawSuccess) && in_array(strtolower(trim($rawSuccess)), ['0','false','no','fail','failed'], true))) {
+                        $transferStatus = 'failed';
+                    } 
+                }
+
+               
                     Transaction::create([
                         'user_id' => $staff->id,
                         'payroll_id' => $payroll->id,
