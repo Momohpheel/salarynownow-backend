@@ -458,29 +458,101 @@ class StaffController extends Controller
             return null;
         }
 
+        // Handle Excel serial date numbers (e.g. 45292 -> 2024-01-01).
+        // Excel stores dates as days since 1899-12-30; a reasonable range
+        // for staff start dates / DOBs is roughly year 1900 to 2100.
+        if (preg_match('/^\d+$/', $date)) {
+            $serial = (int) $date;
+            if ($serial > 1 && $serial < 80000) {
+                try {
+                    $dateTime = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($serial);
+                    if ($dateTime instanceof \DateTimeInterface) {
+                        return Carbon::instance($dateTime)->format('Y-m-d');
+                    }
+                } catch (\Throwable) {
+                    // fall through to other parsers
+                }
+            }
+        }
+
+        // Normalise internal whitespace so "15  Jan   2024" behaves like
+        // "15 Jan 2024" for both the explicit list and Carbon fallback.
+        $normalised = preg_replace('/\s+/', ' ', $date);
+
+        // Try the explicit format list FIRST. It is precise, so it won't
+        // silently produce a wrong-but-valid date the way a lenient parser
+        // can (e.g. "15 Jan, 2024" must not become Jan 15 of the current
+        // year). Covers slash/dash/dot separators, UK/US ordering, 2- and
+        // 4-digit years, and named months (with and without commas).
         $supportedFormats = [
-            'd/m/Y',
-            'Y-m-d',
-            'd-m-Y',
-            'Y/m/d',
-            'd.m.Y',
-            'Y.m.d',
-            'd M Y',
-            'd F Y',
-            'M d Y',
-            'F d Y',
+            // Day-first (UK / common in Nigeria)
+            'd/m/Y', 'd-m-Y', 'd.m.Y',
+            'd/m/y', 'd-m-y', 'd.m.y',
+            'j/n/Y', 'j/n/y', 'j-n-Y', 'j.n.Y',
+            // Month-first (US)
+            'm/d/Y', 'm-d-Y', 'm.d.Y',
+            'm/d/y', 'm-d-y',
+            'n/j/Y', 'n/j/y',
+            // Year-first
+            'Y/m/d', 'Y-m-d', 'Y.m.d',
+            'y/m/d', 'y-m-d',
+            // Named months
+            'd M Y', 'd F Y',
+            'j M Y', 'j F Y',
+            'M d Y', 'F d Y',
+            'M j Y', 'F j Y',
+            'F j, Y', 'M j, Y',
+            'j M, Y', 'j F, Y',
+            // With time component
+            'Y-m-d\TH:i:s', 'Y-m-d H:i:s',
+            'd/m/Y H:i:s', 'd-m-Y H:i:s',
         ];
 
         foreach ($supportedFormats as $format) {
             try {
-                $parsedDate = Carbon::createFromFormat($format, $date);
-
-                if ($parsedDate !== false && $parsedDate->format($format) === $date) {
-                    return $parsedDate->format('Y-m-d');
+                $parsedDate = Carbon::createFromFormat($format, $normalised);
+                if ($parsedDate !== false) {
+                    // Detect overflow: DateTime::createFromFormat silently wraps
+                    // out-of-range components (e.g. month 15 -> March next year).
+                    // getLastErrors() reports a warning in that case.
+                    $lastErrors = \DateTime::getLastErrors();
+                    if (is_array($lastErrors) && ($lastErrors['warning_count'] ?? 0) > 0) {
+                        continue;
+                    }
+                    $year = (int) $parsedDate->format('Y');
+                    $month = (int) $parsedDate->format('n');
+                    $day = (int) $parsedDate->format('j');
+                    if (!checkdate($month, $day, $year)) {
+                        continue;
+                    }
+                    // Expand 2-digit years ("24" -> "2024").
+                    if ($year < 100) {
+                        $year += 2000;
+                        $parsedDate = $parsedDate->setYear($year);
+                    }
+                    if ($year >= 1900 && $year <= 2100) {
+                        return $parsedDate->format('Y-m-d');
+                    }
                 }
             } catch (\Throwable) {
                 continue;
             }
+        }
+
+        // Final fallback: Carbon's lenient parser handles anything the
+        // explicit list missed ("2024-01-15T00:00:00Z", "next Monday",
+        // relative strings, etc.). Only accept results in a sane year
+        // range and validate the calendar date to avoid overflow wraps.
+        try {
+            $parsed = Carbon::parse($normalised);
+            $year = (int) $parsed->format('Y');
+            $month = (int) $parsed->format('n');
+            $day = (int) $parsed->format('j');
+            if ($year >= 1900 && $year <= 2100 && checkdate($month, $day, $year)) {
+                return $parsed->format('Y-m-d');
+            }
+        } catch (\Throwable) {
+            // genuinely unparseable
         }
 
         return null;

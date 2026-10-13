@@ -108,20 +108,20 @@ class OwnerGroupController extends Controller
                     $q->whereRaw('1 = 0');
                 }
             })
-            ->whereIn('status', ['pending', 'approved'])
+            ->whereIn('salary_advances.status', ['pending', 'approved'])
             ->select(DB::raw('COUNT(*) as cnt'))
             ->value('cnt') ?? 0;
 
         $perBusinessAdvanceCounts = SalaryAdvance::whereIn('user_id', $allGroupBusinessIds)
-            ->whereIn('status', ['pending', 'approved'])
+            ->whereIn('salary_advances.status', ['pending', 'approved'])
             ->select('user_id', DB::raw('COUNT(*) as cnt'))
             ->groupBy('user_id')
             ->pluck('cnt', 'user_id');
 
         $staffAdvanceByEmployer = [];
         if (!empty($staffUserIds)) {
-            $staffAdvanceRows = SalaryAdvance::whereIn('staff_id', $staffUserIds)
-                ->whereIn('status', ['pending', 'approved'])
+            $staffAdvanceRows = SalaryAdvance::whereIn('salary_advances.staff_id', $staffUserIds)
+                ->whereIn('salary_advances.status', ['pending', 'approved'])
                 ->join('users as staff_u', 'staff_u.id', '=', 'salary_advances.staff_id')
                 ->select('staff_u.parent_id', DB::raw('COUNT(DISTINCT salary_advances.id) as cnt'))
                 ->groupBy('staff_u.parent_id')
