@@ -12,6 +12,7 @@ use App\Models\WalletLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class OperationsController extends Controller
 {
@@ -71,38 +72,118 @@ class OperationsController extends Controller
     {
         $admin = $request->user();
         $auditEvents = $this->buildAuditEvents($admin, $request);
-        $lastSuccessfulPayroll = Payroll::whereIn('user_id', $this->getEmployerIds($admin))
+        $employerIds = $this->getEmployerIds($admin);
+
+        $lastSuccessfulPayroll = Payroll::whereIn('user_id', $employerIds)
             ->where('status', Payroll::STATUS_COMPLETED)
             ->latest('processed_at')
             ->first();
 
+        $serverTime = now();
+        $checkedAt = $serverTime->toIso8601String();
+        $windowStart = $serverTime->copy()->subDays(30);
+
         $databaseStatus = $this->checkDatabaseStatus();
-        $checkedAt = now()->format('H:i:s');
+
+        // --- Payment gateway (Sarepay) -------------------------------------
+        $sarepayConfigured = (bool) config('payment.base_url') && (bool) config('payment.api_key');
+
+        // --- Email delivery -------------------------------------------------
+        $mailer = (string) config('mail.default');
+        $emailConfigured = (bool) config('services.resend.key')
+            || in_array($mailer, ['smtp', 'ses', 'postmark', 'mailgun', 'resend'], true);
+        $emailStatus = $emailConfigured ? 'online' : ($mailer === 'log' ? 'degraded' : 'unconfigured');
+
+        // --- SMS delivery (no provider is configured yet) -------------------
+        $smsConfigured = (bool) (config('services.termii.key') ?? config('services.twilio.sid'));
+
+        // --- Identity / KYC provider ---------------------------------------
+        $kycConfigured = (bool) config('services.smile_identity.key');
+
+        // --- Queue worker ---------------------------------------------------
+        $pendingJobs = Schema::hasTable('jobs') ? (int) DB::table('jobs')->count() : 0;
+        $failedJobs = Schema::hasTable('failed_jobs')
+            ? (int) DB::table('failed_jobs')->where('failed_at', '>=', $windowStart)->count()
+            : 0;
+        $queueStatus = ! $databaseStatus ? 'down' : ($failedJobs > 0 ? 'degraded' : 'online');
+        $queueConnection = (string) config('queue.default');
+
+        // --- Bank transfers (real Sarepay payout outcomes) ------------------
+        $transferTotal = Transaction::where('created_at', '>=', $windowStart)->count();
+        $transferFailed = Transaction::where('created_at', '>=', $windowStart)
+            ->where('status', Transaction::STATUS_FAILED)
+            ->count();
+        $transferSucceeded = max(0, $transferTotal - $transferFailed);
+        $transferFailureRate = $transferTotal > 0 ? $transferFailed / $transferTotal : 0.0;
+        $transferStatus = ! $databaseStatus
+            ? 'down'
+            : ($transferFailureRate > 0.25 ? 'degraded' : 'online');
+
+        // Platform uptime is derived from real transaction outcomes over the
+        // last 30 days instead of a hard-coded figure.
+        $platformUptime = $transferTotal > 0
+            ? round(($transferSucceeded / $transferTotal) * 100, 2)
+            : null;
 
         $data = [
             'system_health' => [
                 [
-                    'name' => 'Paystack Payment Gateway',
-                    'status' => config('payment.base_url') ? 'Online' : 'Offline',
+                    'name' => 'Sarepay Payment Gateway',
+                    'status' => $sarepayConfigured ? 'online' : 'unconfigured',
+                    'detail' => $sarepayConfigured
+                        ? 'API credentials configured'
+                        : 'No API credentials configured',
+                    'checked_at' => $checkedAt,
+                ],
+                [
+                    'name' => 'Bank Transfer (Sarepay Payouts)',
+                    'status' => $transferStatus,
+                    'detail' => $transferTotal > 0
+                        ? "{$transferSucceeded}/{$transferTotal} transfers succeeded in the last 30 days"
+                        : 'No transfers in the last 30 days',
                     'checked_at' => $checkedAt,
                 ],
                 [
                     'name' => 'Smile Identity KYC Service',
-                    'status' => 'Online',
+                    'status' => $kycConfigured ? 'online' : 'unconfigured',
+                    'detail' => $kycConfigured
+                        ? 'KYC provider configured'
+                        : 'No KYC credentials configured',
+                    'checked_at' => $checkedAt,
+                ],
+                [
+                    'name' => 'Email Delivery (Resend)',
+                    'status' => $emailStatus,
+                    'detail' => 'Mailer: ' . $mailer,
+                    'checked_at' => $checkedAt,
+                ],
+                [
+                    'name' => 'SMS Delivery',
+                    'status' => $smsConfigured ? 'online' : 'unconfigured',
+                    'detail' => $smsConfigured
+                        ? 'SMS gateway configured'
+                        : 'No SMS provider configured',
+                    'checked_at' => $checkedAt,
+                ],
+                [
+                    'name' => 'Queue Worker (' . $queueConnection . ')',
+                    'status' => $queueStatus,
+                    'detail' => "{$pendingJobs} pending · {$failedJobs} failed in the last 30 days",
                     'checked_at' => $checkedAt,
                 ],
                 [
                     'name' => 'Database Connection',
-                    'status' => $databaseStatus ? 'Online' : 'Offline',
+                    'status' => $databaseStatus ? 'online' : 'down',
+                    'detail' => $databaseStatus ? 'Connected' : 'Unreachable',
                     'checked_at' => $checkedAt,
                 ],
             ],
             'processing_timestamps' => [
-                'last_successful_payroll' => $lastSuccessfulPayroll
-                    ? $lastSuccessfulPayroll->processed_at?->format('d M Y, H:i')
-                    : 'No payroll processed yet',
-                'server_time' => now()->format('d M Y, H:i:s'),
-                'platform_uptime' => '99.97%',
+                'last_successful_payroll' => $lastSuccessfulPayroll?->processed_at?->toIso8601String(),
+                'server_time' => $checkedAt,
+                'platform_uptime' => $platformUptime,
+                'uptime_source' => 'Successful transaction ratio (last 30 days)',
+                'uptime_window_days' => 30,
             ],
             'audit_log' => [
                 'total_entries' => $auditEvents->count(),

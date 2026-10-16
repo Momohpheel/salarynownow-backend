@@ -34,6 +34,11 @@ class RegistrationController extends Controller
             'phone_number' => ['required', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'link_name' => ['nullable', 'string', 'exists:users,link_name'],
+        ], [
+            'email.required' => 'Please provide an email address.',
+            'email.email' => 'Please enter a valid email address.',
+            'email.unique' => 'This email is already in use. Please sign in or use a different email.',
+            'phone_number.required' => 'Please provide a phone number.',
         ]);
 
         $merchantId = null;

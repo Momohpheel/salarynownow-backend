@@ -150,8 +150,14 @@ class EmployeeController extends Controller
             return $this->sendError('Employee not found or unauthorized', null, 404);
         }
 
+        // Re-approval is intentionally a no-op: the company keeps its existing
+        // approval, so we must not create a second virtual account nor re-send
+        // the approval email (which previously produced duplicate messages).
         if ($employee->is_approved) {
-            return $this->sendError('Employee is already approved.', null, 400);
+            return $this->sendResponse(
+                $employee->fresh('wallet'),
+                'Company is already approved — no changes were made.'
+            );
         }
 
         // Call Sarepay to create virtual account

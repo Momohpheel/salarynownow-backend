@@ -131,10 +131,17 @@ class MeController extends Controller
             'company_address' => 'nullable|string',
             'number_of_staff' => 'nullable|integer',
             'clone_deduction_types' => 'nullable|boolean',
+        ], [
+            'company_name.required' => 'Please provide a company name.',
+            'email.required' => 'Please provide an email address.',
+            'email.email' => 'Please enter a valid email address.',
+            'email.unique' => 'This email is already in use. Please use a different email.',
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed', $validator->errors(), 422);
+            // Surface the specific field error (e.g. "This email is already in
+            // use") instead of a generic "Validation failed" message.
+            return $this->sendError($validator->errors()->first(), $validator->errors(), 422);
         }
 
         $validated = $validator->validated();
@@ -342,10 +349,14 @@ class MeController extends Controller
             'industry' => 'nullable|string|max:128',
             'company_address' => 'nullable|string',
             'number_of_staff' => 'nullable|integer',
+        ], [
+            'email.email' => 'Please enter a valid email address.',
+            'email.unique' => 'This email is already in use. Please use a different email.',
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed', $validator->errors(), 422);
+            // Surface the specific field error instead of a generic message.
+            return $this->sendError($validator->errors()->first(), $validator->errors(), 422);
         }
 
         $validated = $validator->validated();

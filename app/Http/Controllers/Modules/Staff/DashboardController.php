@@ -13,13 +13,23 @@ class DashboardController extends Controller
         $user = $request->user();
         $employer = User::where('id', $user->parent_id)->first(); // The employee/company that added this staff
 
+        // Payroll runs monthly, so the next payday is the last day of the
+        // current month (today, if today is the last day).
+        $today = now();
+        $dueDate = $today->copy()->endOfMonth()->startOfDay();
+
+        $salary = (float) $user->salary;
+
         $data = [
             'greeting' => "Hello, {$user->first_name} 👋",
             'company_name' => $employer?->company_name ?? 'Test Ind',
             'net_salary' => [
-                'amount' => '₦' . number_format($user->salary, 2),
+                'amount' => '₦' . number_format($salary, 2),
+                'amount_raw' => $salary,
                 'label' => 'Current Month Net Salary',
-                'status' => 'Upcoming'
+                'status' => 'Upcoming',
+                'due_date' => $dueDate->toIso8601String(),
+                'due_label' => $dueDate->isToday() ? 'Today' : 'End of month',
             ],
             'recommendations' => [
                 [
