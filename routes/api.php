@@ -207,6 +207,15 @@ Route::post('/admin/login', [AdminLoginController::class, 'login'])->middleware(
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [EmployeeLoginController::class, 'logout']); 
 
+    // Lightweight keep-alive: touching any authenticated route refreshes the
+    // token's last_used_at (resetting the idle timer). This endpoint exists so
+    // the "Stay signed in" prompt can extend the session without side effects.
+    Route::get('/session/ping', fn () => response()->json([
+        'status' => true,
+        'message' => 'OK',
+        'data' => ['ok' => true],
+    ]));
+
     // Admin Protected Routes
     Route::middleware(['ensure.user.type:admin,super_admin'])->prefix('admin')->group(function () {
         Route::get('/dashboard', [AdminDashboardController::class, 'index']);

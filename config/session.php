@@ -32,7 +32,25 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => (int) env('SESSION_LIFETIME', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Idle & Absolute Session Limits
+    |--------------------------------------------------------------------------
+    |
+    | Sensitive application defaults:
+    |  - idle_timeout:      minutes of inactivity before the session expires.
+    |  - absolute_lifetime: hard ceiling (minutes) after which re-authentication
+    |                       is required regardless of activity (8 hours).
+    |
+    | These are enforced server-side by App\Http\Middleware\EnsureSessionLifetime.
+    |
+    */
+
+    'idle_timeout' => (int) env('SESSION_IDLE_TIMEOUT', 15),
+
+    'absolute_lifetime' => (int) env('SESSION_ABSOLUTE_LIFETIME', 480),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
@@ -47,7 +65,7 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    'encrypt' => env('SESSION_ENCRYPT', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -169,7 +187,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', true),
 
     /*
     |--------------------------------------------------------------------------

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Modules\Staff;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\SessionAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -57,6 +58,8 @@ class VerifyOtpController extends Controller
         ])->save();
 
         $token = $user->createToken('staff-token')->plainTextToken;
+
+        SessionAudit::created($user, 'staff-token');
 
         $user->load('role');
 

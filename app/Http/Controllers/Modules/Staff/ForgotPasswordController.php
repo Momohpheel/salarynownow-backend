@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Staff;
 use App\Http\Controllers\Controller;
 use App\Mail\ResetPasswordMail;
 use App\Models\User;
+use App\Support\SessionAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -36,14 +37,22 @@ class ForgotPasswordController extends Controller
             'token' => 'required',
         ]);
         
+        $resetUser = null;
+
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user, $password) {
+            function ($user, $password) use (&$resetUser) {
                 $user->forceFill(['password' => Hash::make($password)])->save();
+                $resetUser = $user;
             }
         );
 
         if ($status === Password::PASSWORD_RESET) {
+            // Changing the password invalidates every existing session.
+            if ($resetUser) {
+                SessionAudit::revokeAll($resetUser, 'password_reset');
+            }
+
             return $this->sendResponse(null, 'Password has been reset successfully.');
         }
 

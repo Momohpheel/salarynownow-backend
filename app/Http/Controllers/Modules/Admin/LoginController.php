@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Modules\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\SessionAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -51,6 +52,8 @@ class LoginController extends Controller
         $user->resetLoginAttempts();
 
         $token = $user->createToken('admin-token')->plainTextToken;
+
+        SessionAudit::created($user, 'admin-token');
 
         return $this->sendResponse([
             'user' => $user,

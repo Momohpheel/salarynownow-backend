@@ -186,6 +186,9 @@ class MerchantController extends Controller
         if ($request->filled('password')) {
             $request->validate(['password' => ['sometimes', Rules\Password::defaults()]]);
             $merchant->forceFill(['password' => Hash::make($request->input('password'))])->save();
+
+            // Changing a merchant's password invalidates all their sessions.
+            \App\Support\SessionAudit::revokeAll($merchant, 'password_changed_by_operator');
         }
 
         return $this->sendResponse($merchant, 'Merchant updated');

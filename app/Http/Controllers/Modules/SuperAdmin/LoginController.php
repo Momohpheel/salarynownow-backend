@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Modules\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\SessionAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -56,6 +57,8 @@ class LoginController extends Controller
 
         $token = $user->createToken('superadmin_token')->plainTextToken;
 
+        SessionAudit::created($user, 'superadmin_token');
+
         return $this->sendResponse([
             'token' => $token,
             'user' => $user,
@@ -65,7 +68,11 @@ class LoginController extends Controller
     public function logout(Request $request)
     {
         try {
-            $request->user()?->currentAccessToken()?->delete();
+            $user = $request->user();
+            $user?->currentAccessToken()?->delete();
+            if ($user) {
+                SessionAudit::invalidated($user->getAuthIdentifier(), 'logout');
+            }
         } catch (\Throwable) {
         }
 

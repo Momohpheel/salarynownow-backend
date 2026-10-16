@@ -45,12 +45,13 @@ return [
     |--------------------------------------------------------------------------
     |
     | This value controls the number of minutes until an issued token will be
-    | considered expired. This will override any values set in the token's
-    | "expires_at" attribute, but first-party sessions are not affected.
+    | considered expired. This is an absolute ceiling measured from the token's
+    | creation time (default 480 minutes = 8 hours) and is enforced in addition
+    | to the idle timeout handled by EnsureSessionLifetime middleware.
     |
     */
 
-    'expiration' => null,
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 480),
 
     /*
     |--------------------------------------------------------------------------

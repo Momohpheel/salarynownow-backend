@@ -70,7 +70,11 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        $user?->currentAccessToken()?->delete();
+        if ($user) {
+            \App\Support\SessionAudit::invalidated($user->getAuthIdentifier(), 'logout');
+        }
 
         return $this->sendResponse(null, 'Logged out successfully');
     }

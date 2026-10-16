@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\SessionAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -56,6 +57,8 @@ class VerifyOtpController extends Controller
         ])->save();
 
         $token = $user->createToken('employee-token')->plainTextToken;
+
+        SessionAudit::created($user, 'employee-token');
 
         $user->append(['cac_certificate_url', 'director_id_url', 'utility_bill_url']);
 

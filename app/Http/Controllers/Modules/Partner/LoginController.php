@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Modules\Partner;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\SessionAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -52,6 +53,8 @@ class LoginController extends Controller
 
         $token = $user->createToken('partner-token')->plainTextToken;
 
+        SessionAudit::created($user, 'partner-token');
+
         return $this->sendResponse([
             'user' => $user,
             'token' => $token,
@@ -60,7 +63,11 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        $user?->currentAccessToken()?->delete();
+        if ($user) {
+            SessionAudit::invalidated($user->getAuthIdentifier(), 'logout');
+        }
 
         return $this->sendResponse(null, 'Logged out successfully');
     }
