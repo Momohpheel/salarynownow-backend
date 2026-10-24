@@ -108,8 +108,11 @@ class StaffController extends Controller
         $scope = $this->resolveBusinessScope($request, $request->user());
         $isAll = $scope->mode === 'all';
 
-        $query = User::whereIn('parent_id', $scope->business_ids)
-            ->staff()
+        // Columns must be table-qualified: the "all" branch below self-joins
+        // `users` as `employer_users`, so bare `parent_id`/`type` are ambiguous.
+        $query = User::query()
+            ->whereIn('users.parent_id', $scope->business_ids)
+            ->where('users.type', User::TYPE_STAFF)
             ->with([
                 'staffAdvances',
                 'payslips.payroll',
@@ -147,7 +150,7 @@ class StaffController extends Controller
                 'bank_name' => $s->bank_name ?? '-',
                 'state_of_origin' => $s->state_of_origin ?? '-',
                 'date_of_birth' => $s->dob ? Carbon::parse($s->dob)->format('d-m-Y') : '-',
-                'salary' => '₦' . number_format($s->salary, 2),
+                'salary' => '₦' . number_format($s->net_salary, 2),
                 'status' => $s->status,
                 'is_active' => $s->is_active,
                 'department' => $s->department ?? '-',
