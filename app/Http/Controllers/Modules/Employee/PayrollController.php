@@ -659,11 +659,13 @@ class PayrollController extends Controller
             $row = [
                 'id' => $p->id,
                 'reference' => $p->reference,
-                'run_date' => $p->processed_at->format('d M Y'),
+                'run_date' => $p->processed_at?->format('d M Y H:i'),
+                'processed_at' => $p->processed_at?->toIso8601String(),
                 'pay_period' => $p->period_start->format('d M') . ' — ' . $p->period_end->format('d M Y'),
                 'staff_count' => $p->staff_count,
                 'total_amount' => '₦' . number_format($p->amount, 2),
                 'status' => $p->status,
+                'status_label' => $p->status_label,
                 'failed_count' => $failedCount,
                 'failure_summary' => $summary,
             ];

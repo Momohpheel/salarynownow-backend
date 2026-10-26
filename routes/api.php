@@ -65,6 +65,7 @@ use App\Http\Controllers\Modules\SuperAdmin\LoginController as SuperAdminLoginCo
 use App\Http\Controllers\Modules\SuperAdmin\MerchantController;
 use App\Http\Controllers\Modules\SuperAdmin\GrantAdminAccessController;
 use App\Http\Controllers\Webhooks\SarepayWebhookController;
+use App\Http\Controllers\Modules\External\PayrollController as ExternalPayrollController;
 use App\Http\Controllers\Modules\Employee\MeController as EmployeeMeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -78,6 +79,27 @@ Route::get('/banks', [CommonBankController::class, 'index']);
 
 // Webhooks
 Route::post('/webhooks/sarepay', [SarepayWebhookController::class, 'handle']);
+
+// External Partner API — authenticated with an API key sent as
+// `Authorization: Bearer sn_<prefix>_<secret>`. Keys are issued per business;
+// each key is scoped to run/read payrolls, read staff, and read the wallet.
+Route::prefix('external')->middleware('throttle:120,1')->group(function () {
+    Route::get('/me', [ExternalPayrollController::class, 'me'])
+        ->middleware('external.api-key');
+
+    Route::get('/payrolls', [ExternalPayrollController::class, 'listPayrolls'])
+        ->middleware('external.api-key:payroll:read');
+    Route::post('/payrolls', [ExternalPayrollController::class, 'storePayroll'])
+        ->middleware('external.api-key:payroll:run');
+    Route::get('/payrolls/{id}', [ExternalPayrollController::class, 'showPayroll'])
+        ->middleware('external.api-key:payroll:read');
+
+    Route::get('/staff', [ExternalPayrollController::class, 'listStaff'])
+        ->middleware('external.api-key:staff:read');
+
+    Route::get('/wallet', [ExternalPayrollController::class, 'wallet'])
+        ->middleware('external.api-key:wallet:read');
+});
 
 // SuperAdmin Module
 Route::post('/superadmin/login', [SuperAdminLoginController::class, 'login'])->middleware('throttle:10,1');

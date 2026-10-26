@@ -54,7 +54,7 @@ class DashboardController extends Controller
                     'title' => $p->processed_at->format('d M Y') . ' run',
                     'meta' => "{$p->staff_count} employee(s)",
                     'amount' => $this->formatLargeAmount($p->amount),
-                    'status' => ucfirst($p->status),
+                    'status' => $p->status_label,
                 ];
             });
 

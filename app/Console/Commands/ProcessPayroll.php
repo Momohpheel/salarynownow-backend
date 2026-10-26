@@ -323,40 +323,49 @@ class ProcessPayroll extends Command
                 }
             }
 
-            $finalizedPayslipsCount = Payslip::where('payroll_id', $payroll->id)
-                ->whereIn('status', [Payslip::STATUS_DISBURSED, Payslip::STATUS_FAILED])
-                ->count();
             $totalPayslipsOnPayroll = (int) ($payroll->staff_count ?? Payslip::where('payroll_id', $payroll->id)->count());
             $failedPayslipsCount = (int) ($failureSummary['total'] ?? 0)
                 + Payslip::where('payroll_id', $payroll->id)
                     ->where('status', Payslip::STATUS_FAILED)
                     ->whereNotIn('id', $payslips->pluck('id')->all())
                     ->count();
+            $disbursedPayslipsCount = Payslip::where('payroll_id', $payroll->id)
+                ->where('status', Payslip::STATUS_DISBURSED)
+                ->count();
 
-            $anyPayslipFailed = $hasFailures || $failedPayslipsCount > 0;
-            $allDisbursed = !$anyPayslipFailed
-                && $finalizedPayslipsCount >= $totalPayslipsOnPayroll
-                && Payslip::where('payroll_id', $payroll->id)->where('status', Payslip::STATUS_DISBURSED)->count() >= $totalPayslipsOnPayroll;
+            // Some paid + some failed → partially completed (do not fail the
+            // whole run). All failed → failed. All paid → completed. Anything
+            // still in flight → stay processing so the requery can finalise it.
+            if ($failedPayslipsCount > 0 && $disbursedPayslipsCount > 0) {
+                $resolvedStatus = Payroll::STATUS_PARTIALLY_COMPLETED;
+            } elseif ($failedPayslipsCount > 0) {
+                $resolvedStatus = Payroll::STATUS_FAILED;
+            } elseif ($disbursedPayslipsCount >= $totalPayslipsOnPayroll) {
+                $resolvedStatus = Payroll::STATUS_COMPLETED;
+            } else {
+                $resolvedStatus = Payroll::STATUS_PROCESSING;
+            }
 
-            $payrollUpdate = [
-                'status' => $anyPayslipFailed
-                    ? Payroll::STATUS_FAILED
-                    : ($allDisbursed ? Payroll::STATUS_COMPLETED : Payroll::STATUS_PROCESSING),
-            ];
+            $payrollUpdate = ['status' => $resolvedStatus];
             if (Schema::hasColumn('payrolls', 'failure_summary')) {
-                $payrollUpdate['failure_summary'] = $anyPayslipFailed ? $failureSummary : null;
+                $payrollUpdate['failure_summary'] = $failedPayslipsCount > 0 ? $failureSummary : null;
             }
             $payroll->update($payrollUpdate);
 
             try {
                 $employer = $payroll->user;
                 if ($employer) {
-                    $statusLabel = $hasFailures ? 'has failures' : 'complete';
+                    $statusLabel = match ($resolvedStatus) {
+                        Payroll::STATUS_COMPLETED => 'completed',
+                        Payroll::STATUS_PARTIALLY_COMPLETED => 'partially completed',
+                        Payroll::STATUS_FAILED => 'failed',
+                        default => 'processing',
+                    };
                     $totalStaff = (int) ($payroll->staff_count ?? $payslips->count());
-                    $disbursedCount = max(0, $totalStaff - (int) ($failureSummary['total'] ?? 0));
-                    $failedCount = (int) ($failureSummary['total'] ?? 0);
+                    $disbursedCount = $disbursedPayslipsCount;
+                    $failedCount = $failedPayslipsCount;
 
-                    if ($hasFailures) {
+                    if ($failedCount > 0) {
                         $codeLabelMap = [
                             'wallet_missing' => 'Missing employer wallet',
                             'insufficient_balance' => 'Insufficient wallet balance',
@@ -381,36 +390,34 @@ class ProcessPayroll extends Command
                         'type' => 'payroll_completed',
                         'title' => "Payroll {$statusLabel}",
                         'body' => $body,
-                        'icon' => $hasFailures ? 'alert-triangle' : 'check',
+                        'icon' => $failedCount > 0 ? 'alert-triangle' : 'check',
                         'deep_link' => "/payroll/{$payroll->id}",
                         'metadata' => [
                             'payroll_id' => $payroll->id,
                             'period' => $payroll->period_label,
                             'staff_count' => $payroll->staff_count,
                             'amount' => $payroll->amount,
-                            'has_failures' => $hasFailures,
+                            'has_failures' => $failedCount > 0,
                             'failed_count' => $failedCount,
                             'disbursed_count' => $disbursedCount,
-                            'failure_summary' => $hasFailures ? $failureSummary : null,
+                            'failure_summary' => $failedCount > 0 ? $failureSummary : null,
                         ],
                     ]);
                     if ($employer->parent_id) {
-                        $adminBody = $hasFailures
+                        $adminBody = $failedCount > 0
                             ? "Payroll run for {$payroll->period_label} for " . ($employer->company_name ?? $employer->name) . " has {$failedCount} failed payment(s) out of {$totalStaff}. {$disbursedCount} paid successfully."
                             : "Payroll run for {$payroll->period_label} for " . ($employer->company_name ?? $employer->name) . " ({$payroll->staff_count} staff, ₦" . number_format($payroll->amount, 2) . ") {$statusLabel}.";
                         Notification::notify($employer->parent_id, [
                             'category' => 'payroll',
                             'type' => 'payroll_completed',
-                            'title' => $hasFailures
-                                ? "Payroll has failures for " . ($employer->company_name ?? $employer->name)
-                                : "Payroll {$statusLabel} for " . ($employer->company_name ?? $employer->name),
+                            'title' => "Payroll {$statusLabel} for " . ($employer->company_name ?? $employer->name),
                             'body' => $adminBody,
-                            'icon' => $hasFailures ? 'alert-triangle' : 'check',
+                            'icon' => $failedCount > 0 ? 'alert-triangle' : 'check',
                             'deep_link' => "/admin/payrolls",
                             'metadata' => [
                                 'payroll_id' => $payroll->id,
                                 'employer_id' => $employer->id,
-                                'has_failures' => $hasFailures,
+                                'has_failures' => $failedCount > 0,
                                 'failed_count' => $failedCount,
                                 'disbursed_count' => $disbursedCount,
                             ],

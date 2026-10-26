@@ -11,7 +11,7 @@ class Payroll extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
-    const STATUS_NOT_COMPLETED = 'not_completed';
+    const STATUS_PARTIALLY_COMPLETED = 'partially_completed';
     const STATUS_FAILED = 'failed';
 
     protected $fillable = [
@@ -75,6 +75,28 @@ class Payroll extends Model
                 }
 
                 return 'Payroll #' . ($attrs['id'] ?? 'run');
+            },
+        );
+    }
+
+    /**
+     * Human-readable label for the raw status value, so a status such as
+     * `partially_completed` is never shown to users as "Partially_completed".
+     */
+    protected function statusLabel(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $raw = (string) ($this->attributes['status'] ?? '');
+
+                return match ($raw) {
+                    self::STATUS_PENDING => 'Pending',
+                    self::STATUS_PROCESSING => 'Processing',
+                    self::STATUS_COMPLETED => 'Completed',
+                    self::STATUS_PARTIALLY_COMPLETED => 'Partially completed',
+                    self::STATUS_FAILED => 'Failed',
+                    default => $raw !== '' ? ucfirst(str_replace('_', ' ', $raw)) : 'Unknown',
+                };
             },
         );
     }

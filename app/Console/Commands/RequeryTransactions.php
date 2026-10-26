@@ -301,6 +301,7 @@ class RequeryTransactions extends Command
             Payroll::STATUS_PENDING,
             Payroll::STATUS_PROCESSING,
             Payroll::STATUS_FAILED,
+            Payroll::STATUS_PARTIALLY_COMPLETED,
         ])->get();
 
         foreach ($processingPayrolls as $payroll) {
@@ -311,29 +312,24 @@ class RequeryTransactions extends Command
             $completedPayslips = (int) $payroll->payslips()->where('status', Payslip::STATUS_DISBURSED)->count();
             $failedPayslips    = (int) $payroll->payslips()->where('status', Payslip::STATUS_FAILED)->count();
 
-            $anyFailed = $failedPayslips > 0;
-            $allDone   = ($completedPayslips + $failedPayslips) >= $totalPayslips;
-
-            if ($anyFailed) {
-                if ($payroll->status !== Payroll::STATUS_FAILED) {
-                    $payroll->update(['status' => Payroll::STATUS_NOT_COMPLETED]);
-                    $this->warn("Payroll ID: {$payroll->id} marked as NOT_COMPLETED ({$failedPayslips} failed payslip(s)).");
-                } else {
-                    $this->info("Payroll ID: {$payroll->id} already NOT_COMPLETED ({$failedPayslips} failed payslip(s)) — unchanged.");
-                }
+            if ($totalPayslips > 0 && ($completedPayslips + $failedPayslips) < $totalPayslips) {
+                // Some payments are still in flight — leave the payroll as is.
                 continue;
             }
 
-            if ($allDone && $completedPayslips >= $totalPayslips) {
-                if ($payroll->status !== Payroll::STATUS_COMPLETED) {
-                    $payroll->update(['status' => Payroll::STATUS_COMPLETED]);
-                    $this->info("Payroll ID: {$payroll->id} updated to status: completed ({$completedPayslips}/{$totalPayslips} disbursed).");
-                }
+            // Money that landed beats money that failed: a run is only fully
+            // "failed" when nothing at all was paid out.
+            if ($failedPayslips > 0 && $completedPayslips > 0) {
+                $resolvedStatus = Payroll::STATUS_PARTIALLY_COMPLETED;
+            } elseif ($failedPayslips > 0) {
+                $resolvedStatus = Payroll::STATUS_FAILED;
             } else {
-                if ($payroll->status === Payroll::STATUS_COMPLETED) {
-                    $payroll->update(['status' => Payroll::STATUS_PROCESSING]);
-                    $this->warn("Payroll ID: {$payroll->id} moved back to processing ({$completedPayslips}/{$totalPayslips} finalized, none failed).");
-                }
+                $resolvedStatus = Payroll::STATUS_COMPLETED;
+            }
+
+            if ($payroll->status !== $resolvedStatus) {
+                $payroll->update(['status' => $resolvedStatus]);
+                $this->info("Payroll ID: {$payroll->id} marked {$resolvedStatus} ({$completedPayslips} paid, {$failedPayslips} failed of {$totalPayslips}).");
             }
         }
     }

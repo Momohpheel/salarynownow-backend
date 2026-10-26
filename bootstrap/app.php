@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \App\Http\Middleware\CheckPermission::class,
             'ensure.employer.role' => \App\Http\Middleware\EnsureEmployerHasRole::class,
             'ensure.user.type' => \App\Http\Middleware\EnsureUserType::class,
+            'external.api-key' => \App\Http\Middleware\AuthenticateApiKey::class,
         ]);
 
         // Enforce idle + absolute token lifetime before authentication resolves

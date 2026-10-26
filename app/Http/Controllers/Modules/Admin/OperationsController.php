@@ -529,7 +529,7 @@ class OperationsController extends Controller
                 'staff_count' => $payroll->staff_count,
                 'total_amount' => '₦' . number_format($payroll->amount, 2),
                 'total_amount_raw' => $payroll->amount,
-                'status' => ucfirst($payroll->status),
+                'status' => $payroll->status_label,
                 'status_raw' => $payroll->status,
                 'created' => $payroll->created_at->format('d M Y'),
             ];
