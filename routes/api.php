@@ -8,6 +8,7 @@ use App\Http\Controllers\Modules\Employee\DeductionTypeController as EmployeeDed
 use App\Http\Controllers\Modules\Employee\WalletController as EmployeeWalletController;
 use App\Http\Controllers\Modules\Employee\SalaryAdvanceController as EmployeeSalaryAdvanceController;
 use App\Http\Controllers\Modules\Employee\PayrollController as EmployeePayrollController;
+use App\Http\Controllers\Modules\Employee\ApiKeyController as EmployeeApiKeyController;
 use App\Http\Controllers\Modules\Employee\TeamController as EmployeeTeamController;
 use App\Http\Controllers\Modules\Employee\UserRoleController as EmployeeUserRoleController;
 use App\Http\Controllers\Modules\Employee\RoleController as EmployeeRoleController;
@@ -419,6 +420,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/notifications', [EmployeeNotificationController::class, 'index']);
         Route::post('/notifications/{id}/read', [EmployeeNotificationController::class, 'markAsRead']);
         Route::post('/notifications/read-all', [EmployeeNotificationController::class, 'markAllAsRead']);
+
+        // External API Keys (for integration partners)
+        Route::get('/api-keys', [EmployeeApiKeyController::class, 'index'])->middleware('permission:view_settings');
+        Route::post('/api-keys', [EmployeeApiKeyController::class, 'store'])->middleware('permission:manage_settings');
+        Route::delete('/api-keys/{id}', [EmployeeApiKeyController::class, 'destroy'])->middleware('permission:manage_settings');
 
         // Marketplace Enquiries
         Route::post('/marketplace-enquiry', [EmployeeMarketplaceEnquiryController::class, 'store']);
