@@ -301,6 +301,22 @@ class User extends Authenticatable
 
     public function resolveSharedWalletOwner(): User
     {
+        // Team members belong to a business owner via employer_id (not owner_group_user_id).
+        // Resolve to that owner first so the owner's shared-wallet group applies to them too.
+        if (
+            $this->type === self::TYPE_EMPLOYEE
+            && $this->employer_id
+            && (int) $this->employer_id !== (int) $this->id
+        ) {
+            $employer = $this->relationLoaded('parent')
+                ? $this->getRelation('parent')
+                : $this->parent;
+
+            if ($employer instanceof User) {
+                return $employer->resolveSharedWalletOwner();
+            }
+        }
+
         if (is_null($this->owner_group_user_id) || (int) $this->owner_group_user_id === (int) $this->id) {
             return $this;
         }
