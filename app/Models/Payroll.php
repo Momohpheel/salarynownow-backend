@@ -9,6 +9,8 @@ use Illuminate\Support\Carbon;
 class Payroll extends Model
 {
     const STATUS_PENDING = 'pending';
+    const STATUS_PENDING_APPROVAL = 'pending_approval';
+    const STATUS_REJECTED = 'rejected';
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
     const STATUS_PARTIALLY_COMPLETED = 'partially_completed';
@@ -17,11 +19,16 @@ class Payroll extends Model
     protected $fillable = [
         'reference',
         'user_id',
+        'requested_by',
+        'approved_by',
         'description',
         'amount',
         'staff_count',
         'status',
         'processed_at',
+        'approved_at',
+        'rejected_at',
+        'rejection_reason',
         'period_start',
         'period_end',
         'failure_summary',
@@ -29,6 +36,8 @@ class Payroll extends Model
 
     protected $casts = [
         'processed_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'period_start' => 'date',
         'period_end' => 'date',
         'amount' => 'decimal:2',
@@ -91,6 +100,8 @@ class Payroll extends Model
 
                 return match ($raw) {
                     self::STATUS_PENDING => 'Pending',
+                    self::STATUS_PENDING_APPROVAL => 'Pending approval',
+                    self::STATUS_REJECTED => 'Rejected',
                     self::STATUS_PROCESSING => 'Processing',
                     self::STATUS_COMPLETED => 'Completed',
                     self::STATUS_PARTIALLY_COMPLETED => 'Partially completed',
@@ -104,6 +115,16 @@ class Payroll extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function requester()
+    {
+        return $this->belongsTo(User::class, 'requested_by')->withTrashed();
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by')->withTrashed();
     }
 
     public function payslips()

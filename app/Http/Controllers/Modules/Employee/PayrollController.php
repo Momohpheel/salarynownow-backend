@@ -441,7 +441,11 @@ class PayrollController extends Controller
             return $this->sendError('Business not found.', null, 404);
         }
 
-        return DB::transaction(function () use ($request, $employer, $singleBusinessId) {
+        // Users without the "create_payroll" permission cannot disburse directly;
+        // their run is saved as "pending approval" for an approver to sign off.
+        $canRunPayroll = $this->userCanRunPayroll($user);
+
+        return DB::transaction(function () use ($request, $employer, $singleBusinessId, $user, $canRunPayroll) {
             $wallet = $this->findExistingWalletOrFail($employer, $singleBusinessId);
 
             $totalNetToPay = 0;
@@ -452,10 +456,11 @@ class PayrollController extends Controller
             $payroll = Payroll::create([
                 'reference' => $this->generatePayrollReference(),
                 'user_id' => $singleBusinessId,
+                'requested_by' => $user->id,
                 'description' => now()->format('F Y') . ' Salary',
                 'amount' => 0,
                 'staff_count' => 0,
-                'status' => Payroll::STATUS_PENDING,
+                'status' => $canRunPayroll ? Payroll::STATUS_PENDING : Payroll::STATUS_PENDING_APPROVAL,
                 'processed_at' => $request->pay_date,
                 'period_start' => $request->period_start,
                 'period_end' => $request->period_end,
@@ -594,7 +599,9 @@ class PayrollController extends Controller
 
             FacadesLog::info('Wallet balance: ' . ($wallet->balance ?? 0) . ' | spendable: ' . $spendable . ' | pending_settlement: ' . $pendingFunding);
 
-            if ($spendable < (float) $totalNetToPay) {
+            // Only enforce funding up-front when the run will actually disburse now.
+            // A payroll awaiting approval is validated again when it is approved.
+            if ($canRunPayroll && $spendable < (float) $totalNetToPay) {
                 $hint = $pendingFunding > 0
                     ? sprintf(' ₦%s was funded today and becomes available tomorrow.', number_format($pendingFunding, 2))
                     : '';
@@ -613,6 +620,10 @@ class PayrollController extends Controller
                 'staff_count' => $staffCount,
             ]);
 
+            if (!$canRunPayroll) {
+                $this->notifyPayrollApprovers($employer, $payroll, $user);
+            }
+
             $payroll->load('payslips.deductions');
 
             $data = [
@@ -622,6 +633,9 @@ class PayrollController extends Controller
                 'amount' => (float) $payroll->amount,
                 'staff_count' => $payroll->staff_count,
                 'status' => $payroll->status,
+                'status_label' => $payroll->status_label,
+                'requires_approval' => !$canRunPayroll,
+                'requested_by' => $user->id,
                 'processed_at' => $payroll->processed_at?->toISOString(),
                 'period_start' => $payroll->period_start?->format('Y-m-d'),
                 'period_end' => $payroll->period_end?->format('Y-m-d'),
@@ -649,7 +663,11 @@ class PayrollController extends Controller
                 })->values(),
             ];
 
-            return $this->sendResponse($data, 'Payroll processed successfully', true, 201);
+            $message = $canRunPayroll
+                ? 'Payroll processed successfully'
+                : 'Payroll submitted for approval. The business owner has been notified.';
+
+            return $this->sendResponse($data, $message, true, 201);
         });
     }
 
@@ -668,7 +686,9 @@ class PayrollController extends Controller
 
         $payrolls = $query->get();
 
-        $data = $payrolls->map(function ($p) use ($isAll) {
+        $canApprove = $this->userCanApprove($request->user());
+
+        $data = $payrolls->map(function ($p) use ($isAll, $canApprove) {
             $hasFailureSummary = Schema::hasColumn('payrolls', 'failure_summary');
             $summary = $hasFailureSummary ? ($p->failure_summary ?? null) : null;
             $failedCount = is_array($summary) ? (int) ($summary['total'] ?? 0) : 0;
@@ -682,6 +702,9 @@ class PayrollController extends Controller
                 'total_amount' => '₦' . number_format($p->amount, 2),
                 'status' => $p->status,
                 'status_label' => $p->status_label,
+                'requires_approval' => $p->status === Payroll::STATUS_PENDING_APPROVAL,
+                'can_approve' => $canApprove,
+                'rejection_reason' => $p->rejection_reason ?? null,
                 'failed_count' => $failedCount,
                 'failure_summary' => $summary,
             ];
@@ -700,7 +723,7 @@ class PayrollController extends Controller
         $isAll = $scope->mode === 'all';
 
         $query = Payroll::whereIn('user_id', $scope->business_ids)
-            ->with(['payslips.user', 'payslips.deductions']);
+            ->with(['payslips.user', 'payslips.deductions', 'requester']);
 
         if ($isAll) {
             $query->join('users', 'users.id', '=', 'payrolls.user_id')
@@ -737,6 +760,11 @@ class PayrollController extends Controller
             'reference' => $payroll->reference,
             'period' => $payroll->period_start->format('d M') . ' — ' . $payroll->period_end->format('d M Y'),
             'status' => $payroll->status,
+            'status_label' => $payroll->status_label,
+            'requires_approval' => $payroll->status === Payroll::STATUS_PENDING_APPROVAL,
+            'can_approve' => $this->userCanApprove($request->user()),
+            'rejection_reason' => $payroll->rejection_reason ?? null,
+            'requested_by_name' => $payroll->requester?->name,
             'summary' => [
                 'staff_count' => $payroll->staff_count,
                 'total_gross' => '₦' . number_format($totalGross, 2),
@@ -1312,6 +1340,202 @@ class PayrollController extends Controller
         }
 
         return $this->sendResponse($flag, 'Flagged row rejected');
+    }
+
+    /**
+     * Approve a payroll that was submitted for approval, releasing it to the
+     * normal disbursement pipeline.
+     */
+    public function approve(Request $request, $id)
+    {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $actor = $request->user();
+
+        $payroll = Payroll::whereIn('user_id', $scope->business_ids)->findOrFail($id);
+
+        if ($payroll->status !== Payroll::STATUS_PENDING_APPROVAL) {
+            return $this->sendError('This payroll is not awaiting approval.', null, 422);
+        }
+
+        if (! $this->userCanApprove($actor)) {
+            return $this->sendError('You do not have permission to approve payrolls.', null, 403);
+        }
+
+        // Re-validate funding before releasing the run.
+        $employer = User::find($payroll->user_id);
+        $wallet = $this->findExistingWalletOrFail($employer, (int) $payroll->user_id);
+        $settlementDelay = $employer->hasPayrollSettlementDelay();
+        $spendable = $wallet->spendableBalance($settlementDelay);
+
+        if ($spendable < (float) $payroll->amount) {
+            return $this->sendError(sprintf(
+                'Insufficient wallet balance to approve this payroll. Required: ₦%s | Available: ₦%s.',
+                number_format((float) $payroll->amount, 2),
+                number_format($spendable, 2)
+            ), null, 422);
+        }
+
+        $payroll->update([
+            'status' => Payroll::STATUS_PENDING,
+            'approved_by' => $actor->id,
+            'approved_at' => now(),
+        ]);
+
+        try {
+            if ($payroll->requested_by && (int) $payroll->requested_by !== (int) $actor->id) {
+                Notification::notify((int) $payroll->requested_by, [
+                    'category' => 'payroll_approval',
+                    'type' => 'payroll_approved',
+                    'title' => 'Your payroll was approved',
+                    'body' => sprintf(
+                        'Payroll %s for ₦%s was approved and will now be processed.',
+                        $payroll->reference,
+                        number_format((float) $payroll->amount, 2)
+                    ),
+                    'icon' => 'check-square',
+                    'deep_link' => '/payroll/' . $payroll->id,
+                    'metadata' => ['payroll_id' => $payroll->id],
+                ]);
+            }
+        } catch (\Throwable) {
+        }
+
+        return $this->sendResponse([
+            'id' => $payroll->id,
+            'status' => $payroll->status,
+            'status_label' => $payroll->status_label,
+        ], 'Payroll approved and queued for processing');
+    }
+
+    /**
+     * Reject a payroll that was submitted for approval.
+     */
+    public function reject(Request $request, $id)
+    {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $actor = $request->user();
+
+        $payroll = Payroll::whereIn('user_id', $scope->business_ids)->findOrFail($id);
+
+        if ($payroll->status !== Payroll::STATUS_PENDING_APPROVAL) {
+            return $this->sendError('This payroll is not awaiting approval.', null, 422);
+        }
+
+        if (! $this->userCanApprove($actor)) {
+            return $this->sendError('You do not have permission to reject payrolls.', null, 403);
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $payroll->update([
+            'status' => Payroll::STATUS_REJECTED,
+            'approved_by' => $actor->id,
+            'rejected_at' => now(),
+            'rejection_reason' => $validated['rejection_reason'],
+        ]);
+
+        try {
+            if ($payroll->requested_by && (int) $payroll->requested_by !== (int) $actor->id) {
+                Notification::notify((int) $payroll->requested_by, [
+                    'category' => 'payroll_approval',
+                    'type' => 'payroll_rejected',
+                    'title' => 'Your payroll was rejected',
+                    'body' => sprintf(
+                        'Payroll %s was rejected: %s',
+                        $payroll->reference,
+                        $validated['rejection_reason']
+                    ),
+                    'icon' => 'x-square',
+                    'deep_link' => '/payroll/' . $payroll->id,
+                    'metadata' => ['payroll_id' => $payroll->id],
+                ]);
+            }
+        } catch (\Throwable) {
+        }
+
+        return $this->sendResponse([
+            'id' => $payroll->id,
+            'status' => $payroll->status,
+            'status_label' => $payroll->status_label,
+            'rejection_reason' => $payroll->rejection_reason,
+        ], 'Payroll rejected');
+    }
+
+    /**
+     * Whether the user may disburse payroll directly (without needing approval).
+     */
+    private function userCanRunPayroll(User $user): bool
+    {
+        $employerId = (int) $user->getEmployerId();
+        if ((int) $user->id === $employerId) {
+            return true;
+        }
+
+        try {
+            if ($user->hasRole('admin') || $user->hasRole('finance_manager')) {
+                return true;
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
+            if ($user->hasPermissionTo('create_payroll')) {
+                return true;
+            }
+        } catch (\Throwable) {
+        }
+
+        return (bool) ($user->is_admin ?? false);
+    }
+
+    /**
+     * Notify everyone who can approve payroll for this business that a run is
+     * waiting for their sign-off.
+     */
+    private function notifyPayrollApprovers(User $employer, Payroll $payroll, User $requester): void
+    {
+        try {
+            $candidates = User::query()
+                ->where(function ($q) use ($employer) {
+                    $q->where('id', $employer->id)
+                        ->orWhere('employer_id', $employer->id);
+                })
+                ->get();
+
+            $notified = [];
+            foreach ($candidates as $candidate) {
+                $cid = (int) $candidate->id;
+                if ($cid === (int) $requester->id) {
+                    continue;
+                }
+                if (isset($notified[$cid])) {
+                    continue;
+                }
+                if (! $this->userCanApprove($candidate)) {
+                    continue;
+                }
+                $notified[$cid] = true;
+
+                Notification::notify($candidate, [
+                    'category' => 'payroll_approval',
+                    'type' => 'payroll_pending_approval',
+                    'title' => 'Payroll awaiting your approval',
+                    'body' => sprintf(
+                        '%s submitted a payroll run of ₦%s for %d staff. Review and approve to disburse.',
+                        $requester->name ?? 'A team member',
+                        number_format((float) $payroll->amount, 2),
+                        (int) $payroll->staff_count
+                    ),
+                    'icon' => 'clock',
+                    'deep_link' => '/payroll',
+                    'metadata' => ['payroll_id' => $payroll->id, 'reference' => $payroll->reference],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            FacadesLog::warning('Failed to notify payroll approvers: ' . $e->getMessage());
+        }
     }
 
     private function userCanApprove(User $user): bool

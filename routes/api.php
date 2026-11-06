@@ -378,6 +378,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/payrolls/review', [EmployeePayrollController::class, 'review']);
         Route::post('/payrolls/check-balance', [EmployeePayrollController::class, 'checkBalance']);
         Route::post('/payrolls', [EmployeePayrollController::class, 'store']);
+        Route::post('/payrolls/{payroll}/approve', [EmployeePayrollController::class, 'approve']);
+        Route::post('/payrolls/{payroll}/reject', [EmployeePayrollController::class, 'reject']);
         Route::get('/payrolls/{payroll}', [EmployeePayrollController::class, 'show']);
         Route::get('/payslips/{id}/download', [EmployeePayrollController::class, 'downloadPayslip']);
         Route::get('/payrolls-sample/download', [EmployeePayrollController::class, 'downloadSample']);
