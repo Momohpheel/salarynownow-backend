@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        if (Schema::hasColumn('users', 'payroll_settlement_delay_enabled')) {
+            return;
+        }
+
+        Schema::table('users', function (Blueprint $table) {
+            // When true, funds topped up today cannot be used to run payroll until the next day.
+            $table->boolean('payroll_settlement_delay_enabled')->default(false)->after('is_active');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        if (!Schema::hasColumn('users', 'payroll_settlement_delay_enabled')) {
+            return;
+        }
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('payroll_settlement_delay_enabled');
+        });
+    }
+};

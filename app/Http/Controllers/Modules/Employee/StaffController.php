@@ -228,6 +228,29 @@ class StaffController extends Controller
         return $this->sendResponse($staff, 'Staff updated successfully');
     }
 
+    public function destroy(Request $request, User $staff)
+    {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+
+        if (!in_array((int) $staff->parent_id, $scope->business_ids, true) || $staff->type !== User::TYPE_STAFF) {
+            return $this->sendError('Unauthorized or staff not found.', null, 403);
+        }
+
+        if (!Schema::hasColumn('users', 'deleted_at')) {
+            return $this->sendError('Staff deletion is unavailable. Please run pending migrations.', null, 422);
+        }
+
+        // Revoke any active sessions so the removed staff can no longer sign in.
+        try {
+            $staff->tokens()->delete();
+        } catch (\Throwable) {
+        }
+
+        $staff->delete();
+
+        return $this->sendResponse(null, 'Staff member deleted successfully');
+    }
+
     public function toggleStatus(Request $request, User $staff)
     {
         $scope = $this->resolveBusinessScope($request, $request->user());

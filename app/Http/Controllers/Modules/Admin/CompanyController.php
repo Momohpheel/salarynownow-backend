@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Modules\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class CompanyController extends Controller
 {
@@ -46,6 +47,7 @@ class CompanyController extends Controller
                 'kyb_status' => $user->is_approved ? 'approved' : ($user->status ?? 'pending'),
                 'is_approved' => (bool) $user->is_approved,
                 'has_kyb_documents' => (bool) ($user->cac_certificate_path || $user->director_id_path || $user->utility_bill_path),
+                'payroll_settlement_delay_enabled' => $user->hasPayrollSettlementDelay(),
                 'created_at' => $user->created_at?->toIso8601String(),
             ];
         };
@@ -94,6 +96,9 @@ class CompanyController extends Controller
 
         $data = [
             'company_info' => $company,
+            'settings' => [
+                'payroll_settlement_delay_enabled' => $company->hasPayrollSettlementDelay(),
+            ],
         ];
 
         return $this->sendResponse($data, 'Company details retrieved successfully');
@@ -140,5 +145,35 @@ class CompanyController extends Controller
         ]);
 
         return $this->sendResponse($company->fresh(), 'Company linked to owner group successfully');
+    }
+
+    /**
+     * Update per-employer settings for a company.
+     * Currently supports the payroll settlement delay (T+1) toggle.
+     */
+    public function updateSettings(Request $request, User $company)
+    {
+        $admin = $request->user();
+
+        if ($company->type !== User::TYPE_EMPLOYEE || $company->parent_id !== $admin->id) {
+            return $this->sendError('Company not found or unauthorized', null, 404);
+        }
+
+        if (!Schema::hasColumn('users', 'payroll_settlement_delay_enabled')) {
+            return $this->sendError('This setting is unavailable. Please run pending migrations.', null, 422);
+        }
+
+        $validated = $request->validate([
+            'payroll_settlement_delay_enabled' => ['required', 'boolean'],
+        ]);
+
+        $company->update([
+            'payroll_settlement_delay_enabled' => (bool) $validated['payroll_settlement_delay_enabled'],
+        ]);
+
+        return $this->sendResponse([
+            'id' => $company->id,
+            'payroll_settlement_delay_enabled' => $company->hasPayrollSettlementDelay(),
+        ], 'Company settings updated successfully');
     }
 }

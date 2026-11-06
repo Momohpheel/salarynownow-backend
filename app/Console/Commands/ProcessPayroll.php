@@ -69,7 +69,8 @@ class ProcessPayroll extends Command
             $payroll->update(['status' => Payroll::STATUS_PROCESSING]);
             $walletOwner = $employer->resolveSharedWalletOwner();
             $employerWallet = $walletOwner->wallet;
-            $availableBalance = (float) ($employerWallet?->balance ?? 0);
+            $settlementDelay = $employer->hasPayrollSettlementDelay();
+            $availableBalance = (float) ($employerWallet?->spendableBalance($settlementDelay) ?? 0);
             $hasFailures = false;
             $hasPayslipFailureReasonCol = Schema::hasColumn('payslips', 'failure_reason');
             $hasPayslipFailureCodeCol = Schema::hasColumn('payslips', 'failure_code');

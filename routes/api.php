@@ -262,6 +262,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/companies/{company}', [AdminCompanyController::class, 'show']);
         Route::post('/companies/{company}/deactivate', [AdminCompanyController::class, 'deactivate']);
         Route::post('/companies/{company}/link-to-owner-group', [AdminCompanyController::class, 'linkToOwnerGroup']);
+        Route::post('/companies/{company}/settings', [AdminCompanyController::class, 'updateSettings']);
         Route::post('/companies/{company}/wallet/credit', [AdminWalletController::class, 'credit']);
         Route::post('/companies/{company}/wallet/debit', [AdminWalletController::class, 'debit']);
         Route::get('/charges', [AdminChargeController::class, 'index']);
@@ -361,6 +362,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/staff/bank/verify', [StaffController::class, 'verifyBank']);
         Route::post('/staff/bulk-upload', [StaffController::class, 'bulkUpload']);
         Route::post('/staff/{staff}', [StaffController::class, 'update']);
+        Route::delete('/staff/{staff}', [StaffController::class, 'destroy']);
         Route::post('/staff/{staff}/toggle-status', [StaffController::class, 'toggleStatus']);
         Route::post('/staff/{staff}/invite', [StaffController::class, 'invite']);
 

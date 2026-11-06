@@ -392,12 +392,19 @@ class PayrollController extends Controller
             ], 500);
         }
 
-        $isSufficient = (float) $wallet->balance >= (float) $request->total_amount;
+        $settlementDelay = $employer->hasPayrollSettlementDelay();
+        $pendingFunding = $settlementDelay ? $wallet->sameDayFundingTotal() : 0.0;
+        $spendable = $wallet->spendableBalance($settlementDelay);
+
+        $isSufficient = $spendable >= (float) $request->total_amount;
 
         $data = [
             'is_sufficient' => $isSufficient,
             'current_balance' => '₦' . number_format((float) $wallet->balance, 2),
+            'available_balance' => '₦' . number_format($spendable, 2),
             'required_amount' => '₦' . number_format((float) $request->total_amount, 2),
+            'settlement_delay_enabled' => $settlementDelay,
+            'pending_settlement' => '₦' . number_format($pendingFunding, 2),
             'wallet_user_id' => $wallet->user_id,
         ];
 
@@ -581,14 +588,23 @@ class PayrollController extends Controller
                 ));
             }
 
-            FacadesLog::info('Wallet balance: ' . ($wallet->balance ?? 0));
+            $settlementDelay = $employer->hasPayrollSettlementDelay();
+            $pendingFunding = $settlementDelay ? $wallet->sameDayFundingTotal() : 0.0;
+            $spendable = $wallet->spendableBalance($settlementDelay);
 
-            if ((float) ($wallet->balance ?? 0) < (float) $totalNetToPay) {
+            FacadesLog::info('Wallet balance: ' . ($wallet->balance ?? 0) . ' | spendable: ' . $spendable . ' | pending_settlement: ' . $pendingFunding);
+
+            if ($spendable < (float) $totalNetToPay) {
+                $hint = $pendingFunding > 0
+                    ? sprintf(' ₦%s was funded today and becomes available tomorrow.', number_format($pendingFunding, 2))
+                    : '';
+
                 throw new \Exception(sprintf(
-                    'Insufficient wallet balance to complete payroll. Required: ₦%s | Available: ₦%s | Business ID: %s',
+                    'Insufficient wallet balance to complete payroll. Required: ₦%s | Available: ₦%s | Business ID: %s.%s',
                     number_format((float) $totalNetToPay, 2),
-                    number_format((float) ($wallet->balance ?? 0), 2),
-                    $singleBusinessId
+                    number_format($spendable, 2),
+                    $singleBusinessId,
+                    $hint
                 ));
             }
 

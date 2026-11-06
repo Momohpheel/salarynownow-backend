@@ -45,7 +45,8 @@ class Payslip extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        // Include soft-deleted staff so historical payslips keep showing who was paid.
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     public function payroll()

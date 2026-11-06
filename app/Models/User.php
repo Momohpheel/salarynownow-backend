@@ -7,8 +7,10 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable([
@@ -41,6 +43,7 @@ use Laravel\Sanctum\HasApiTokens;
     'pfa_name',
     'rsa_pin',
     'is_active',
+    'payroll_settlement_delay_enabled',
     'pension_employee_rate',
     'pension_employer_rate',
     'pension_employee',
@@ -66,7 +69,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     const TYPE_SUPERADMIN = 'superadmin';
     const TYPE_ADMIN = 'admin'; // Also referred to as Merchants
@@ -91,9 +94,27 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_approved' => 'boolean',
             'is_active' => 'boolean',
+            'payroll_settlement_delay_enabled' => 'boolean',
             'lockout_until' => 'datetime',
             'alternative_emails' => 'array',
         ];
+    }
+
+    /**
+     * Whether funds topped up today must settle for a day before they can fund payroll.
+     */
+    public function hasPayrollSettlementDelay(): bool
+    {
+        static $hasColumn = null;
+        if ($hasColumn === null) {
+            $hasColumn = Schema::hasColumn('users', 'payroll_settlement_delay_enabled');
+        }
+
+        if (! $hasColumn) {
+            return false;
+        }
+
+        return (bool) ($this->payroll_settlement_delay_enabled ?? false);
     }
 
     public function isLockedOut(): bool
