@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PayrollPendingApproval;
 use App\Models\DeductionType;
 use App\Models\Notification;
 use App\Models\Payroll;
@@ -15,6 +16,7 @@ use App\Traits\ResolvesBusinessContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log as FacadesLog;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
@@ -1532,6 +1534,16 @@ class PayrollController extends Controller
                     'deep_link' => '/payroll',
                     'metadata' => ['payroll_id' => $payroll->id, 'reference' => $payroll->reference],
                 ]);
+
+                if (! empty($candidate->email)) {
+                    try {
+                        Mail::to($candidate->email)->send(
+                            new PayrollPendingApproval($payroll, $requester, $candidate->name)
+                        );
+                    } catch (\Throwable $e) {
+                        FacadesLog::warning('Failed to email payroll approver ' . $candidate->id . ': ' . $e->getMessage());
+                    }
+                }
             }
         } catch (\Throwable $e) {
             FacadesLog::warning('Failed to notify payroll approvers: ' . $e->getMessage());
