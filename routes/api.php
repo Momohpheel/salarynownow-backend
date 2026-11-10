@@ -263,6 +263,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/companies/{company}/deactivate', [AdminCompanyController::class, 'deactivate']);
         Route::post('/companies/{company}/link-to-owner-group', [AdminCompanyController::class, 'linkToOwnerGroup']);
         Route::post('/companies/{company}/settings', [AdminCompanyController::class, 'updateSettings']);
+        Route::post('/companies/{company}/run-payroll', [AdminCompanyController::class, 'runPayroll']);
         Route::post('/companies/{company}/wallet/credit', [AdminWalletController::class, 'credit']);
         Route::post('/companies/{company}/wallet/debit', [AdminWalletController::class, 'debit']);
         Route::get('/charges', [AdminChargeController::class, 'index']);

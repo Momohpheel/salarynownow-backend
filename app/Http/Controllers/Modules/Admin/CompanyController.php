@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Modules\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Modules\Employee\PayrollController as EmployeePayrollController;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class CompanyController extends Controller
@@ -175,5 +177,43 @@ class CompanyController extends Controller
             'id' => $company->id,
             'payroll_settlement_delay_enabled' => $company->hasPayrollSettlementDelay(),
         ], 'Company settings updated successfully');
+    }
+
+    /**
+     * Run a payroll on behalf of a company by impersonating its owner.
+     *
+     * The owner (which has permission to disburse) is used as the acting user so
+     * the run goes straight through to processing instead of the approval queue.
+     * Expects the standard payroll payload: period_start, period_end, pay_date,
+     * staff_data (see Employee\PayrollController::store). An optional
+     * `business_id` may target a specific business within the owner's group.
+     */
+    public function runPayroll(Request $request, User $company)
+    {
+        $admin = $request->user();
+
+        if ($company->type !== User::TYPE_EMPLOYEE || $company->parent_id !== $admin->id) {
+            return $this->sendError('Company not found or unauthorized', null, 404);
+        }
+
+        // Impersonate the company owner (resolves owner group / shared wallet).
+        $owner = $company->resolveSharedWalletOwner();
+        if (!$owner instanceof User) {
+            return $this->sendError('Company owner could not be resolved', null, 422);
+        }
+
+        // Default the business scope to this specific company unless explicitly set.
+        if (!$request->filled('business_id')) {
+            $request->merge(['business_id' => $company->id]);
+        }
+
+        Log::info('Admin running payroll on behalf of company', [
+            'admin_id' => $admin->id,
+            'company_id' => $company->id,
+            'impersonated_owner_id' => $owner->id,
+            'business_id' => $request->input('business_id'),
+        ]);
+
+        return app(EmployeePayrollController::class)->store($request, $owner);
     }
 }
