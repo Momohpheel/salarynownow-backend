@@ -284,6 +284,12 @@ class RequeryTransactions extends Command
                             }
                         }
 
+                        // A late failure can downgrade a run that was optimistically
+                        // marked completed when transfers were first initiated.
+                        if ($lockedPayslip?->payroll) {
+                            $this->resolvePayrollStatus($lockedPayslip->payroll);
+                        }
+
                         $this->error("Transaction {$lockedTx->reference} marked as FAILED.");
                     });
                 }
@@ -305,32 +311,43 @@ class RequeryTransactions extends Command
         ])->get();
 
         foreach ($processingPayrolls as $payroll) {
-            $totalPayslips = (int) ($payroll->staff_count ?? $payroll->payslips()->count());
-            if ($totalPayslips <= 0) {
-                $totalPayslips = $payroll->payslips()->count();
-            }
-            $completedPayslips = (int) $payroll->payslips()->where('status', Payslip::STATUS_DISBURSED)->count();
-            $failedPayslips    = (int) $payroll->payslips()->where('status', Payslip::STATUS_FAILED)->count();
+            $this->resolvePayrollStatus($payroll);
+        }
+    }
 
-            if ($totalPayslips > 0 && ($completedPayslips + $failedPayslips) < $totalPayslips) {
-                // Some payments are still in flight — leave the payroll as is.
-                continue;
-            }
+    /**
+     * Recompute a single payroll's final status from its payslips.
+     *
+     * A run is only "failed" when nothing at all was paid out; money that
+     * landed beats money that failed, so a mix resolves to partially_completed.
+     * This is also called directly when a requery flips a transaction to failed,
+     * so an optimistic "completed" run still downgrades correctly.
+     */
+    private function resolvePayrollStatus(Payroll $payroll): void
+    {
+        $totalPayslips = (int) ($payroll->staff_count ?? $payroll->payslips()->count());
+        if ($totalPayslips <= 0) {
+            $totalPayslips = $payroll->payslips()->count();
+        }
+        $completedPayslips = (int) $payroll->payslips()->where('status', Payslip::STATUS_DISBURSED)->count();
+        $failedPayslips    = (int) $payroll->payslips()->where('status', Payslip::STATUS_FAILED)->count();
 
-            // Money that landed beats money that failed: a run is only fully
-            // "failed" when nothing at all was paid out.
-            if ($failedPayslips > 0 && $completedPayslips > 0) {
-                $resolvedStatus = Payroll::STATUS_PARTIALLY_COMPLETED;
-            } elseif ($failedPayslips > 0) {
-                $resolvedStatus = Payroll::STATUS_FAILED;
-            } else {
-                $resolvedStatus = Payroll::STATUS_COMPLETED;
-            }
+        if ($totalPayslips > 0 && ($completedPayslips + $failedPayslips) < $totalPayslips) {
+            // Some payments are still in flight — leave the payroll as is.
+            return;
+        }
 
-            if ($payroll->status !== $resolvedStatus) {
-                $payroll->update(['status' => $resolvedStatus]);
-                $this->info("Payroll ID: {$payroll->id} marked {$resolvedStatus} ({$completedPayslips} paid, {$failedPayslips} failed of {$totalPayslips}).");
-            }
+        if ($failedPayslips > 0 && $completedPayslips > 0) {
+            $resolvedStatus = Payroll::STATUS_PARTIALLY_COMPLETED;
+        } elseif ($failedPayslips > 0) {
+            $resolvedStatus = Payroll::STATUS_FAILED;
+        } else {
+            $resolvedStatus = Payroll::STATUS_COMPLETED;
+        }
+
+        if ($payroll->status !== $resolvedStatus) {
+            $payroll->update(['status' => $resolvedStatus]);
+            $this->info("Payroll ID: {$payroll->id} marked {$resolvedStatus} ({$completedPayslips} paid, {$failedPayslips} failed of {$totalPayslips}).");
         }
     }
 }
