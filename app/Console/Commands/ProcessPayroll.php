@@ -430,8 +430,7 @@ class ProcessPayroll extends Command
 
             if (! $hasFailures && $payroll->user?->email) {
                 $payroll->load('user');
-                // Disabled for now: notify the owner/company that the payroll has been paid.
-                // Mail::to($payroll->user->email)->send(new PayrollCompleted($payroll));
+                Mail::to($payroll->user->email)->send(new PayrollCompleted($payroll));
             }
 
             $this->info("Payroll ID: {$payroll->id} processing complete.");
