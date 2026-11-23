@@ -4,14 +4,17 @@ namespace App\Http\Controllers\Modules\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Mail\StaffAdded;
+use App\Mail\StaffDeletionRequested;
 use App\Mail\StaffInvitation;
 use App\Models\Notification;
+use App\Models\StaffDeletionRequest;
 use App\Models\User;
 use App\Services\Sarepay\SarepayService;
 use App\Traits\ResolvesBusinessContext;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -138,6 +141,11 @@ class StaffController extends Controller
             $query->where('users.invitation_status', $request->status);
         }
 
+        // Only show soft-deleted staff when explicitly requested (for restore).
+        if ($request->boolean('trashed')) {
+            $query->onlyTrashed();
+        }
+
         $staff = $query->orderBy('users.created_at', 'desc')->get();
 
         $data = $staff->map(function($s) use ($isAll) {
@@ -153,6 +161,8 @@ class StaffController extends Controller
                 'salary' => '₦' . number_format($s->net_salary, 2),
                 'status' => $s->status,
                 'is_active' => $s->is_active,
+                'is_deleted' => method_exists($s, 'trashed') ? $s->trashed() : false,
+                'deleted_at' => optional($s->deleted_at)->toISOString(),
                 'department' => $s->department ?? '-',
                 'job_title' => $s->job_title ?? '-',
                 'start_date' => $s->start_date ? Carbon::parse($s->start_date)->format('d-m-Y') : '-',
@@ -199,6 +209,27 @@ class StaffController extends Controller
             return $this->sendError('Unauthorized or staff not found.', null, 403);
         }
 
+        // An already-set account number is the salary payout destination, so
+        // changing it is sensitive: only the business owner may do so. The new
+        // number is re-verified against Sarepay by the bank/verify endpoint
+        // before it is saved here.
+        $oldAccountNumber = (string) ($staff->account_number ?? '');
+        $oldBankName = (string) ($staff->bank_name ?? '');
+        $incomingAccountNumber = $request->has('account_number')
+            ? trim((string) $request->account_number)
+            : $oldAccountNumber;
+        $isBankChange = $oldAccountNumber !== ''
+            && $incomingAccountNumber !== ''
+            && $incomingAccountNumber !== $oldAccountNumber;
+
+        if ($isBankChange && ! $this->isBusinessOwner($request->user())) {
+            return $this->sendError(
+                "Only the business owner can change a staff member's account number. Please ask the account owner to update it.",
+                null,
+                403,
+            );
+        }
+
         $request->validate([
             'first_name' => ['sometimes', 'string', 'max:255'],
             'last_name' => ['sometimes', 'string', 'max:255'],
@@ -223,14 +254,213 @@ class StaffController extends Controller
             $data['name'] = ($request->first_name ?? $staff->first_name) . ' ' . ($request->last_name ?? $staff->last_name);
         }
 
+        if ($isBankChange) {
+            // Re-verify the new payout destination with Sarepay before saving so
+            // a client cannot swap the account number without verification.
+            $targetBankName = $request->has('bank_name') && $request->bank_name !== null
+                ? trim((string) $request->bank_name)
+                : $oldBankName;
+
+            $verifiedName = $this->verifyAccountWithSarepay($incomingAccountNumber, $targetBankName, $staff);
+            if ($verifiedName === null) {
+                return $this->sendError(
+                    'We could not verify the new account number with the bank. Please check the account number and bank, then try again.',
+                    null,
+                    422,
+                );
+            }
+
+            // The bank is the source of truth for the account name.
+            $data['account_name'] = $verifiedName;
+        }
+
         $staff->update($data);
 
+        if ($isBankChange) {
+            Log::info('Staff bank account changed', [
+                'staff_id' => $staff->id,
+                'business_id' => $staff->parent_id,
+                'changed_by' => $request->user()->id,
+                'old_account_number' => $oldAccountNumber,
+                'old_bank_name' => $oldBankName,
+                'new_account_number' => (string) $staff->account_number,
+                'new_bank_name' => (string) $staff->bank_name,
+                'ip' => $request->ip(),
+            ]);
+        }
+
         return $this->sendResponse($staff, 'Staff updated successfully');
+    }
+
+    /**
+     * True when the acting user is the business owner (not a team member).
+     * Team members carry an employer_id pointing at the owner, so their own id
+     * differs from getEmployerId().
+     */
+    private function isBusinessOwner(User $user): bool
+    {
+        return (int) $user->id === (int) $user->getEmployerId();
+    }
+
+    /**
+     * Whether the user may approve (or reject/restore) staff deletions. Owners,
+     * the "admin" role, and holders of the "approve_staff_deletion" permission
+     * qualify; everyone else must raise a request for one of them to action.
+     */
+    private function userCanApproveStaffDeletion(User $user): bool
+    {
+        if ($this->isBusinessOwner($user)) {
+            return true;
+        }
+
+        if ((bool) ($user->is_admin ?? false)) {
+            return true;
+        }
+
+        try {
+            if ($user->hasRole('admin')) {
+                return true;
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
+            if ($user->hasPermissionTo('approve_staff_deletion')) {
+                return true;
+            }
+        } catch (\Throwable) {
+        }
+
+        return false;
+    }
+
+    private function softDeleteStaff(User $staff): void
+    {
+        // Revoke any active sessions so the removed staff can no longer sign in.
+        try {
+            $staff->tokens()->delete();
+        } catch (\Throwable) {
+        }
+
+        $staff->delete();
+    }
+
+    /**
+     * Notify everyone who can approve staff deletions that a request is waiting
+     * for their sign-off (in-app notification + email).
+     */
+    private function notifyStaffDeletionApprovers(User $requester, User $staff, StaffDeletionRequest $deletionRequest): void
+    {
+        try {
+            $candidates = User::query()
+                ->where(function ($q) use ($staff) {
+                    $q->where('id', $staff->parent_id)
+                        ->orWhere('employer_id', $staff->parent_id);
+                })
+                ->get();
+
+            $notified = [];
+            foreach ($candidates as $candidate) {
+                $cid = (int) $candidate->id;
+                if ($cid === (int) $requester->id || isset($notified[$cid])) {
+                    continue;
+                }
+                if (! $this->userCanApproveStaffDeletion($candidate)) {
+                    continue;
+                }
+                $notified[$cid] = true;
+
+                Notification::notify($candidate, [
+                    'category' => 'staff_deletion',
+                    'type' => 'staff_deletion_requested',
+                    'title' => 'Staff deletion awaiting your approval',
+                    'body' => sprintf(
+                        '%s requested to remove %s from your staff list. Review and approve to proceed.',
+                        $requester->name ?? 'A team member',
+                        $staff->name ?? 'a staff member'
+                    ),
+                    'icon' => 'clock',
+                    'deep_link' => '/staff',
+                    'metadata' => ['staff_id' => $staff->id, 'request_id' => $deletionRequest->id],
+                ]);
+
+                if (! empty($candidate->email)) {
+                    try {
+                        Mail::to($candidate->email)->send(
+                            new StaffDeletionRequested($staff, $requester, $candidate->name, $deletionRequest->reason)
+                        );
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to email staff deletion approver ' . $candidate->id . ': ' . $e->getMessage());
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to notify staff deletion approvers: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Re-verify a payout account number with Sarepay. Returns the resolved
+     * account name, or null when the bank code cannot be determined or the
+     * account does not verify.
+     */
+    private function verifyAccountWithSarepay(string $accountNumber, string $bankName, User $staff): ?string
+    {
+        $bankCode = $this->resolveBankCodeForName($bankName);
+        if ($bankCode === null) {
+            Log::warning('Bank code not found while re-verifying staff account', [
+                'staff_id' => $staff->id,
+                'bank_name' => $bankName,
+            ]);
+            return null;
+        }
+
+        try {
+            $result = $this->sarepayService->validateAccount($accountNumber, $bankCode);
+        } catch (\Throwable $e) {
+            Log::warning('Sarepay account re-verification error for staff ' . $staff->id . ': ' . $e->getMessage());
+            return null;
+        }
+
+        $accountName = $result->data->account_name ?? null;
+
+        return ($result->success ?? false) && !empty($accountName)
+            ? (string) $accountName
+            : null;
+    }
+
+    /**
+     * Resolve a Sarepay bank code from a bank name (case/whitespace-insensitive).
+     */
+    private function resolveBankCodeForName(string $bankName): ?string
+    {
+        $target = $this->normalizeBankName($bankName);
+        if ($target === '') {
+            return null;
+        }
+
+        try {
+            $banks = $this->sarepayService->getBanks();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to fetch banks for account re-verification: ' . $e->getMessage());
+            return null;
+        }
+
+        foreach ($banks as $bank) {
+            $name = is_array($bank) ? ($bank['name'] ?? null) : ($bank->name ?? null);
+            $code = is_array($bank) ? ($bank['code'] ?? null) : ($bank->code ?? null);
+            if ($name !== null && $code !== null && $this->normalizeBankName((string) $name) === $target) {
+                return (string) $code;
+            }
+        }
+
+        return null;
     }
 
     public function destroy(Request $request, User $staff)
     {
         $scope = $this->resolveBusinessScope($request, $request->user());
+        $actor = $request->user();
 
         if (!in_array((int) $staff->parent_id, $scope->business_ids, true) || $staff->type !== User::TYPE_STAFF) {
             return $this->sendError('Unauthorized or staff not found.', null, 403);
@@ -240,15 +470,230 @@ class StaffController extends Controller
             return $this->sendError('Staff deletion is unavailable. Please run pending migrations.', null, 422);
         }
 
-        // Revoke any active sessions so the removed staff can no longer sign in.
+        // An approver (owner/admin or a holder of "approve_staff_deletion") can
+        // remove the staff member immediately.
+        if ($this->userCanApproveStaffDeletion($actor)) {
+            $this->softDeleteStaff($staff);
+
+            return $this->sendResponse(null, 'Staff member deleted successfully');
+        }
+
+        // Everyone else raises a request that an approver must sign off first.
+        if (Schema::hasTable('staff_deletion_requests')) {
+            $existing = StaffDeletionRequest::query()
+                ->where('staff_id', $staff->id)
+                ->where('status', StaffDeletionRequest::STATUS_PENDING)
+                ->first();
+
+            if ($existing) {
+                return $this->sendError('A deletion request for this staff member is already awaiting approval.', null, 422);
+            }
+        }
+
+        $validated = $request->validate([
+            'reason' => ['sometimes', 'nullable', 'string', 'max:500'],
+        ]);
+
+        if (!Schema::hasTable('staff_deletion_requests')) {
+            return $this->sendError('Staff deletion requests are unavailable. Please run pending migrations.', null, 422);
+        }
+
+        $deletionRequest = StaffDeletionRequest::create([
+            'staff_id' => $staff->id,
+            'employer_id' => (int) $staff->parent_id,
+            'requested_by' => $actor->id,
+            'reason' => $validated['reason'] ?? null,
+            'status' => StaffDeletionRequest::STATUS_PENDING,
+        ]);
+
+        $this->notifyStaffDeletionApprovers($actor, $staff, $deletionRequest);
+
+        return $this->sendResponse([
+            'pending_approval' => true,
+            'request_id' => $deletionRequest->id,
+        ], 'Deletion request submitted. It will take effect once an approver reviews it.');
+    }
+
+    /**
+     * Restore a soft-deleted staff member.
+     */
+    public function restore(Request $request, $id)
+    {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+
+        if (!Schema::hasColumn('users', 'deleted_at')) {
+            return $this->sendError('Staff restore is unavailable. Please run pending migrations.', null, 422);
+        }
+
+        if (! $this->userCanApproveStaffDeletion($request->user())) {
+            return $this->sendError('You do not have permission to restore staff members.', null, 403);
+        }
+
+        $staff = User::withTrashed()
+            ->where('type', User::TYPE_STAFF)
+            ->whereIn('parent_id', $scope->business_ids)
+            ->find($id);
+
+        if (! $staff || ! $staff->trashed()) {
+            return $this->sendError('Unauthorized or staff not found.', null, 403);
+        }
+
+        $staff->restore();
+
+        // Close out any pending deletion request that led to this removal.
+        if (Schema::hasTable('staff_deletion_requests')) {
+            StaffDeletionRequest::query()
+                ->where('staff_id', $staff->id)
+                ->where('status', StaffDeletionRequest::STATUS_PENDING)
+                ->update([
+                    'status' => StaffDeletionRequest::STATUS_REJECTED,
+                    'rejected_at' => now(),
+                ]);
+        }
+
+        return $this->sendResponse(['id' => $staff->id], 'Staff member restored successfully');
+    }
+
+    /**
+     * List pending staff-deletion requests awaiting an approver.
+     */
+    public function deletionRequests(Request $request)
+    {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+
+        if (!Schema::hasTable('staff_deletion_requests')) {
+            return $this->sendResponse([], 'No pending deletion requests');
+        }
+
+        $requests = StaffDeletionRequest::query()
+            ->whereIn('employer_id', $scope->business_ids)
+            ->where('status', StaffDeletionRequest::STATUS_PENDING)
+            ->with(['staff', 'requester'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function (StaffDeletionRequest $r) {
+                return [
+                    'id' => $r->id,
+                    'staff_id' => $r->staff_id,
+                    'staff_name' => $r->staff?->name
+                        ?? trim((string) ($r->staff?->first_name . ' ' . $r->staff?->last_name)),
+                    'staff_email' => $r->staff?->email,
+                    'job_title' => $r->staff?->job_title,
+                    'department' => $r->staff?->department,
+                    'reason' => $r->reason,
+                    'requested_by' => $r->requester?->name,
+                    'requested_by_email' => $r->requester?->email,
+                    'created_at' => $r->created_at?->toISOString(),
+                ];
+            });
+
+        return $this->sendResponse($requests, 'Pending deletion requests retrieved');
+    }
+
+    /**
+     * Approve a pending deletion request, removing the staff member.
+     */
+    public function approveDeletion(Request $request, $id)
+    {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $actor = $request->user();
+
+        if (!Schema::hasTable('staff_deletion_requests')) {
+            return $this->sendError('Staff deletion requests are unavailable. Please run pending migrations.', null, 422);
+        }
+
+        if (! $this->userCanApproveStaffDeletion($actor)) {
+            return $this->sendError('You do not have permission to approve staff deletions.', null, 403);
+        }
+
+        $deletionRequest = StaffDeletionRequest::whereIn('employer_id', $scope->business_ids)->findOrFail($id);
+
+        if ($deletionRequest->status !== StaffDeletionRequest::STATUS_PENDING) {
+            return $this->sendError('This deletion request has already been resolved.', null, 422);
+        }
+
+        $staff = User::withTrashed()->find($deletionRequest->staff_id);
+        if (! $staff) {
+            return $this->sendError('The staff member no longer exists.', null, 404);
+        }
+
+        if (! $staff->trashed()) {
+            $this->softDeleteStaff($staff);
+        }
+
+        $deletionRequest->update([
+            'status' => StaffDeletionRequest::STATUS_APPROVED,
+            'approved_by' => $actor->id,
+            'approved_at' => now(),
+        ]);
+
         try {
-            $staff->tokens()->delete();
+            if ((int) $deletionRequest->requested_by !== (int) $actor->id) {
+                Notification::notify((int) $deletionRequest->requested_by, [
+                    'category' => 'staff_deletion',
+                    'type' => 'staff_deletion_approved',
+                    'title' => 'Staff deletion approved',
+                    'body' => sprintf('Your request to remove %s was approved.', $staff->name ?? 'the staff member'),
+                    'icon' => 'check-square',
+                    'deep_link' => '/staff',
+                    'metadata' => ['staff_id' => $staff->id],
+                ]);
+            }
         } catch (\Throwable) {
         }
 
-        $staff->delete();
+        return $this->sendResponse(['id' => $deletionRequest->id], 'Staff deletion approved');
+    }
 
-        return $this->sendResponse(null, 'Staff member deleted successfully');
+    /**
+     * Reject a pending deletion request, keeping the staff member.
+     */
+    public function rejectDeletion(Request $request, $id)
+    {
+        $scope = $this->resolveBusinessScope($request, $request->user());
+        $actor = $request->user();
+
+        if (!Schema::hasTable('staff_deletion_requests')) {
+            return $this->sendError('Staff deletion requests are unavailable. Please run pending migrations.', null, 422);
+        }
+
+        if (! $this->userCanApproveStaffDeletion($actor)) {
+            return $this->sendError('You do not have permission to reject staff deletions.', null, 403);
+        }
+
+        $deletionRequest = StaffDeletionRequest::whereIn('employer_id', $scope->business_ids)->findOrFail($id);
+
+        if ($deletionRequest->status !== StaffDeletionRequest::STATUS_PENDING) {
+            return $this->sendError('This deletion request has already been resolved.', null, 422);
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => ['sometimes', 'nullable', 'string', 'max:500'],
+        ]);
+
+        $deletionRequest->update([
+            'status' => StaffDeletionRequest::STATUS_REJECTED,
+            'approved_by' => $actor->id,
+            'rejected_at' => now(),
+            'rejection_reason' => $validated['rejection_reason'] ?? null,
+        ]);
+
+        try {
+            if ((int) $deletionRequest->requested_by !== (int) $actor->id) {
+                Notification::notify((int) $deletionRequest->requested_by, [
+                    'category' => 'staff_deletion',
+                    'type' => 'staff_deletion_rejected',
+                    'title' => 'Staff deletion rejected',
+                    'body' => 'Your request to remove a staff member was rejected.',
+                    'icon' => 'x-square',
+                    'deep_link' => '/staff',
+                    'metadata' => ['staff_id' => $deletionRequest->staff_id],
+                ]);
+            }
+        } catch (\Throwable) {
+        }
+
+        return $this->sendResponse(['id' => $deletionRequest->id], 'Staff deletion rejected');
     }
 
     public function toggleStatus(Request $request, User $staff)
@@ -652,9 +1097,12 @@ class StaffController extends Controller
             $staff = User::find($staffId);
             $existing = (string) ($staff?->account_number ?? '');
             $incoming = trim((string) $request->account_number);
-            if ($existing !== '' && $existing !== $incoming) {
+            if ($existing !== '' && $existing !== $incoming && ! $this->isBusinessOwner($request->user())) {
+                // The account number is the payout destination. The owner may
+                // change it (the new number is still re-verified with Sarepay
+                // below); team members cannot.
                 return $this->sendError(
-                    'For security, this staff account number has already been set and cannot be verified to a different number. Contact admin to change it.',
+                    "Only the business owner can change a staff member's account number. Please ask the account owner to update it.",
                     null,
                     403,
                 );

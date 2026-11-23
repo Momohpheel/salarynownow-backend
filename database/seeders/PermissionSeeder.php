@@ -28,6 +28,8 @@ class PermissionSeeder extends Seeder
             ['name' => 'toggle_staff_status', 'group' => 'Staff Management'],
             ['name' => 'invite_staff', 'group' => 'Staff Management'],
             ['name' => 'resend_staff_invite', 'group' => 'Staff Management'],
+            ['name' => 'delete_staff', 'group' => 'Staff Management'],
+            ['name' => 'approve_staff_deletion', 'group' => 'Staff Management'],
 
             // Salary Advances
             ['name' => 'view_salary_advances', 'group' => 'Salary Advances'],
@@ -81,6 +83,10 @@ class PermissionSeeder extends Seeder
             ['name' => 'view_settings', 'group' => 'Settings'],
             ['name' => 'manage_settings', 'group' => 'Settings'],
 
+            // API Keys (external integration credentials)
+            ['name' => 'view_api_keys', 'group' => 'API Keys'],
+            ['name' => 'manage_api_keys', 'group' => 'API Keys'],
+
             // Profile
             ['name' => 'complete_profile', 'group' => 'Profile'],
             ['name' => 'view_profile', 'group' => 'Profile'],
@@ -92,6 +98,25 @@ class PermissionSeeder extends Seeder
                 ['name' => $permission['name']],
                 ['group' => $permission['group']]
             );
+        }
+
+        // Additively grant any newly-added permissions to the existing standard
+        // roles (admin/finance_manager/hr/viewer) so already-onboarded employers
+        // pick up the changes. Existing custom grants are preserved because we
+        // only attach, never detach.
+        foreach (Role::standardDefinitions() as $name => $definition) {
+            $roleNames = $name === 'admin' ? ['admin', 'owner'] : [$name];
+            $permissionIds = Permission::whereIn('name', $definition['perms'])->pluck('id')->all();
+            if (empty($permissionIds)) {
+                continue;
+            }
+
+            Role::query()
+                ->whereIn('name', $roleNames)
+                ->get()
+                ->each(function (Role $role) use ($permissionIds) {
+                    $role->permissions()->syncWithoutDetaching($permissionIds);
+                });
         }
     }
 }
